@@ -5,11 +5,12 @@ from gi.repository import Gio, GLib
 class Config:
     APP_ID = "ru.itsegork.shellix"
     APP_NAME = "Shellix"
-    CURRENT_VERSION = "1.0.0"
+    CURRENT_VERSION = "1.0.1"
     GITHUB_REPO = "itsegork/shellix"
     
     CONFIG_DIR = os.path.expanduser("~/.config/shellix")
     CONFIG_FILE = os.path.join(CONFIG_DIR, "settings.json")
+    CONFIG_HOME = GLib.get_home_dir()
     
     DEFAULT_SETTINGS = {
         "font": "Adwaita Mono 12",

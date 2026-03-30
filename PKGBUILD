@@ -1,6 +1,6 @@
 # Maintainer: Egor Kurochkin <itsegork@gmail.com>
 pkgname=shellix
-pkgver=1.0.0
+pkgver=1.0.1
 pkgrel=1
 pkgdesc="Virtual terminal for Linux with tab support and customizable options"
 arch=('any')
@@ -12,7 +12,7 @@ depends=(
     'python-requests'
     'gtk4'
     'libadwaita'
-    'vte3'
+    'vte4'
     'python-psutil'
     'cairo'
     'pango'

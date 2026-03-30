@@ -5,6 +5,7 @@ gi.require_version('Gtk', '4.0')
 gi.require_version('Vte', '3.91')
 
 from gi.repository import GLib, Gdk, Vte, Pango
+from config import Config
 
 class ShellixTerminal(Vte.Terminal):
     def __init__(self, settings):
@@ -73,7 +74,7 @@ class ShellixTerminal(Vte.Terminal):
         
         self.spawn_async(
             Vte.PtyFlags.DEFAULT,
-            os.getcwd(),
+            Config.CONFIG_HOME,
             [shell], 
             env_list,
             GLib.SpawnFlags.DO_NOT_REAP_CHILD,
@@ -88,7 +89,7 @@ class ShellixTerminal(Vte.Terminal):
             return
 
         custom_commands = [
-            "alias aboutshellix='echo \"Shellix 1.0.0 - Modern Virtual Terminal.\"'\n",
+            f"alias aboutshellix='echo \"Shellix {Config.CURRENT_VERSION} - Modern Virtual Terminal.\"'\n",
             "clear\n" 
         ]
 
