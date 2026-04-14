@@ -2,6 +2,8 @@ import gi
 import sys
 import psutil
 import time
+import ctypes
+import ctypes.util
 
 gi.require_version('Adw', '1')
 gi.require_version('Gtk', '4.0')
@@ -14,27 +16,39 @@ from preferences import PreferencesWindow
 from info import Info
 from updatemanager import UpdateManager
 
+def set_process_name(name):
+    libc = ctypes.CDLL(ctypes.util.find_library('c'))
+    buff = ctypes.create_string_buffer(name.encode('utf-8'), 16)
+    libc.prctl(15, ctypes.byref(buff), 0, 0, 0)
+
 class ShellixWindow(Adw.ApplicationWindow):
     def __init__(self, app, settings):
         super().__init__(application=app)
         
         self.settings = settings
-        self.set_title("Shellix")
-        self.set_default_size(1000, 650)
+        self.set_title(Config.APP_NAME)
         
+        self.set_default_size(
+            self.settings.get("window_width", 800), 
+            self.settings.get("window_height", 600)
+        )
+        
+        if self.settings.get("is_maximized"):
+            self.maximize()
+            
         self.last_net_io = psutil.net_io_counters()
         self.last_time = time.time()
         
-        self.update_manager = UpdateManager(self)
-        
         self.setup_ui()
+        self.updatemanager = UpdateManager(self)
         self.setup_actions()
-        self.setup_shortcuts()
         
         Config.watch(self.on_settings_reloaded)
         self.new_tab()
         
+        self.connect("close-request", self.on_close_request)
         GLib.timeout_add_seconds(2, self.update_system_stats)
+        GLib.timeout_add_seconds(10, self.updatemanager.check)
 
     def setup_ui(self):
         self.toast_overlay = Adw.ToastOverlay()
@@ -42,15 +56,15 @@ class ShellixWindow(Adw.ApplicationWindow):
 
         main_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.toast_overlay.set_child(main_box)
+        self.add_toast = self.toast_overlay.add_toast
 
         self.header = Adw.HeaderBar()
-        
         self.stats_label = Gtk.Label(label="Загрузка...")
         self.stats_label.add_css_class("title")
-        self.stats_label.set_selectable(False)
         self.header.set_title_widget(self.stats_label)
         
         menu = Gio.Menu.new()
+        menu.append("Новое окно", "app.new_window")
         menu.append("Проверить обновления", "win.check_updates")
         menu.append("Настройки", "win.preferences")
         menu.append("О программе", "win.about")
@@ -75,51 +89,45 @@ class ShellixWindow(Adw.ApplicationWindow):
         self.tab_bar.set_end_action_widget(new_tab_btn)
 
         main_box.append(self.tab_bar)
-
-        self.tab_view.set_hexpand(True)
-        self.tab_view.set_vexpand(True)
         main_box.append(self.tab_view)
-
         self.apply_clean_styles()
 
-    def add_toast(self, toast):
-        self.toast_overlay.add_toast(toast)
+    def setup_actions(self):
+        actions = {
+            "new_tab": self.new_tab,
+            "close_tab": self.close_current_tab,
+            "preferences": self.show_preferences,
+            "about": lambda: Info(self),
+            "check_updates": lambda: self.updatemanager.check(),
+            "copy": self.do_copy,
+            "paste": self.do_paste
+        }
+        for name, callback in actions.items():
+            action = Gio.SimpleAction.new(name, None)
+            action.connect("activate", lambda a, p, cb=callback: cb())
+            self.add_action(action)
 
     def update_system_stats(self):
-        if getattr(self.update_manager, 'is_checking', False):
+        if getattr(self.updatemanager, 'is_checking', False):
             return True
-
         try:
             cpu = psutil.cpu_percent()
-            
             vm = psutil.virtual_memory()
-            ram_used = vm.used / (1024**3)
-            ram_total = vm.total / (1024**3)
-            
             du = psutil.disk_usage('/')
-            disk_used = du.used / (1024**3)
-            disk_total = du.total / (1024**3)
-            
             net_io = psutil.net_io_counters()
             now = time.time()
-            elapsed = now - self.last_time
+            elapsed = max(now - self.last_time, 0.1)
             dl = (net_io.bytes_recv - self.last_net_io.bytes_recv) / elapsed / 1024
             ul = (net_io.bytes_sent - self.last_net_io.bytes_sent) / elapsed / 1024
-            
             self.last_net_io = net_io
             self.last_time = now
 
-            stats = (
-                f"  {cpu}%  "
-                f"󰘚  {ram_used:.1f}/{ram_total:.1f} GB  "
-                f"󰋊  {disk_used:.0f}/{disk_total:.0f} GB  "
-                f"󰓅  {dl:.1f}↓ {ul:.1f}↑ КБ/с"
-            )
+            stats = (f"  {cpu}%  󰘚  {vm.used/(1024**3):.1f}/{vm.total/(1024**3):.1f} GB  "
+                     f"󰋊  {du.used/(1024**3):.0f}/{du.total/(1024**3):.0f} GB  "
+                     f"󰓅  {dl:.1f}↓ {ul:.1f}↑ КБ/с")
             self.stats_label.set_label(stats)
-            
         except Exception:
             self.stats_label.set_label("Shellix")
-        
         return True
 
     def apply_clean_styles(self):
@@ -137,76 +145,43 @@ class ShellixWindow(Adw.ApplicationWindow):
         provider.load_from_data(css.encode())
         Gtk.StyleContext.add_provider_for_display(Gdk.Display.get_default(), provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
 
-    def setup_shortcuts(self):
-        key_controller = Gtk.EventControllerKey.new()
-        key_controller.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
-        key_controller.connect("key-pressed", self.on_key_pressed)
-        self.add_controller(key_controller)
-
-    def on_key_pressed(self, controller, keyval, keycode, state):
-        state = state & Gtk.accelerator_get_default_mod_mask()
-        if state == (Gdk.ModifierType.CONTROL_MASK | Gdk.ModifierType.SHIFT_MASK):
-            if keyval == Gdk.KEY_T: self.activate_action("win.new_tab", None); return True
-            if keyval == Gdk.KEY_W: self.activate_action("win.close_tab", None); return True
-            if keyval == Gdk.KEY_C: self.do_copy(); return True
-            if keyval == Gdk.KEY_V: self.do_paste(); return True
-
-        if state == Gdk.ModifierType.CONTROL_MASK:
-            if keyval in [Gdk.KEY_plus, Gdk.KEY_equal]: self.do_zoom_in(); return True
-            if keyval == Gdk.KEY_minus: self.do_zoom_out(); return True
-            if keyval == Gdk.KEY_0: self.do_zoom_reset(); return True
-            if keyval == Gdk.KEY_comma: self.show_preferences(); return True
-            if keyval == Gdk.KEY_Page_Down: self.tab_view.select_next_page(); return True
-            if keyval == Gdk.KEY_Page_Up: self.tab_view.select_previous_page(); return True
-        return False
-
-    def setup_actions(self):
-        actions = {
-            "new_tab": self.new_tab,
-            "close_tab": self.close_current_tab,
-            "next_tab": lambda: self.tab_view.select_next_page(),
-            "prev_tab": lambda: self.tab_view.select_previous_page(),
-            "preferences": self.show_preferences,
-            "about": lambda: Info.__init__(self, parent=self),
-            "check_updates": lambda: self.update_manager.check(),
-        }
-        for name, callback in actions.items():
-            action = Gio.SimpleAction.new(name, None)
-            action.connect("activate", lambda a, p, cb=callback: cb())
-            self.add_action(action)
-
     def new_tab(self):
         terminal = ShellixTerminal(self.settings)
-        terminal.connect("child-exited", self.on_terminal_child_exited)
-        terminal.set_hexpand(True)
-        terminal.set_vexpand(True)
-        scrolled = Gtk.ScrolledWindow()
-        scrolled.set_child(terminal)
+        terminal.connect("child-exited", lambda t, s: self.on_terminal_child_exited(t))
+        scrolled = Gtk.ScrolledWindow(child=terminal)
         page = self.tab_view.append(scrolled)
         page.set_title("Terminal")
-        terminal.connect("window-title-changed", lambda vte: page.set_title(vte.get_window_title() or "Terminal"))
+        terminal.connect("window-title-changed", lambda v: page.set_title(v.get_property("window-title") or "Terminal"))
         self.tab_view.set_selected_page(page)
         terminal.grab_focus()
 
     def get_current_terminal(self):
         page = self.tab_view.get_selected_page()
-        if page: return page.get_child().get_child()
-        return None
-
-    def on_page_close_request(self, tab_view, page):
-        if tab_view.get_n_pages() <= 1: self.get_application().quit(); return True 
-        return False 
+        return page.get_child().get_child() if page else None
 
     def close_current_tab(self):
         page = self.tab_view.get_selected_page()
         if page: self.tab_view.close_page(page)
 
-    def on_terminal_child_exited(self, terminal, status):
+    def on_page_close_request(self, tab_view, page):
+        if tab_view.get_n_pages() <= 1: 
+            self.close()
+        else:
+            tab_view.close_page_finish(page, True)
+        return True
+
+    def on_terminal_child_exited(self, terminal):
         for i in range(self.tab_view.get_n_pages()):
             page = self.tab_view.get_nth_page(i)
             if page.get_child().get_child() == terminal:
                 self.tab_view.close_page(page)
                 break
+
+    def on_close_request(self, window):
+        w, h = self.get_default_size()
+        self.settings.update({"window_width": w, "window_height": h, "is_maximized": self.is_maximized()})
+        Config.save_settings(self.settings)
+        return False
 
     def on_setup_tab_menu(self, tab_view, page):
         menu = Gio.Menu()
@@ -222,43 +197,44 @@ class ShellixWindow(Adw.ApplicationWindow):
         term = self.get_current_terminal()
         if term: term.paste_clipboard()
 
-    def do_zoom_in(self):
-        term = self.get_current_terminal()
-        if term: term.zoom_in()
-
-    def do_zoom_out(self):
-        term = self.get_current_terminal()
-        if term: term.zoom_out()
-
-    def do_zoom_reset(self):
-        term = self.get_current_terminal()
-        if term: term.zoom_reset()
-
     def show_preferences(self):
-        prefs = PreferencesWindow(self, self.settings, Config.save_settings)
-        prefs.present()
+        PreferencesWindow(self, self.settings, Config.save_settings).present()
 
     def on_settings_reloaded(self, new_settings):
         self.settings = new_settings
         for i in range(self.tab_view.get_n_pages()):
-            page = self.tab_view.get_nth_page(i)
-            terminal = page.get_child().get_child()
-            if isinstance(terminal, ShellixTerminal):
-                terminal.apply_settings(new_settings)
+            term = self.tab_view.get_nth_page(i).get_child().get_child()
+            if hasattr(term, 'apply_settings'): term.apply_settings(new_settings)
 
 class ShellixApplication(Adw.Application):
     def __init__(self):
         super().__init__(application_id=Config.APP_ID, flags=Gio.ApplicationFlags.DEFAULT_FLAGS)
 
+    def do_startup(self):
+        Adw.Application.do_startup(self)
+        
+        self.set_accels_for_action("win.new_tab", ["<Control>t"])
+        self.set_accels_for_action("win.close_tab", ["<Control>w"])
+        self.set_accels_for_action("win.copy", ["<Control><Shift>c"])
+        self.set_accels_for_action("win.paste", ["<Control><Shift>v"])
+        self.set_accels_for_action("app.new_window", ["<Control>n"])
+        self.set_accels_for_action("win.preferences", ["<Control>i"])
+        self.set_accels_for_action("win.check_updates", ["<Control>u"])
+        self.set_accels_for_action("win.about", ["F1"])
+
+        action = Gio.SimpleAction.new("new_window", None)
+        action.connect("activate", lambda a, p: self.do_activate())
+        self.add_action(action)
+
     def do_activate(self):
-        settings = Config.load_settings()
-        win = self.props.active_window
-        if not win: win = ShellixWindow(self, settings)
+        win = ShellixWindow(self, settings=Config.load_settings())
         win.present()
 
-def main():
-    app = ShellixApplication()
-    return app.run(sys.argv)
-
 if __name__ == "__main__":
-    main()
+    try:
+        set_process_name("Shellix")
+    except Exception:
+        pass
+
+    app = ShellixApplication()
+    app.run(sys.argv)

@@ -1,6 +1,6 @@
 # Maintainer: Egor Kurochkin <itsegork@gmail.com>
 pkgname=shellix
-pkgver=1.0.1
+pkgver=1.0.2
 pkgrel=1
 pkgdesc="Virtual terminal for Linux with tab support and customizable options"
 arch=('any')
@@ -52,18 +52,19 @@ EOF
     
     if [ -f "$pkgdir/usr/share/$pkgname/data/icons/ru.itsegork.shellix.svg" ]; then
         cp "$pkgdir/usr/share/$pkgname/data/icons/ru.itsegork.shellix.svg" \
-           "$pkgdir/usr/share/pixmaps/$pkgname.svg"
+           "$pkgdir/usr/share/pixmaps/ru.itsegork.shellix.svg"
     fi
     
-    cat > "$pkgdir/usr/share/applications/$pkgname.desktop" << EOF
+    cat > "$pkgdir/usr/share/applications/ru.itsegork.shellix.desktop" << EOF
 [Desktop Entry]
 Name=Shellix
 Comment=Virtual terminal for Linux with tab support and customizable options
-Exec=$pkgname
-Icon=$pkgname
+Exec=ru.itsegork.shellix
+Icon=ru.itsegork.shellix
 Terminal=false
 Type=Application
 Categories=Development;System;
 Keywords=console;terminal;manager;shell;vte;
+StartupWMClass=ru.itsegork.shellix
 EOF
 }

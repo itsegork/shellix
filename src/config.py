@@ -5,7 +5,7 @@ from gi.repository import Gio, GLib
 class Config:
     APP_ID = "ru.itsegork.shellix"
     APP_NAME = "Shellix"
-    CURRENT_VERSION = "1.0.1"
+    CURRENT_VERSION = "1.0.2"
     GITHUB_REPO = "itsegork/shellix"
     
     CONFIG_DIR = os.path.expanduser("~/.config/shellix")
@@ -16,7 +16,10 @@ class Config:
         "font": "Adwaita Mono 12",
         "cursor_shape": "block",
         "enable_audible_bell": True,
-        "default_shell": os.environ.get("SHELL", "/bin/bash")
+        "default_shell": os.environ.get("SHELL", "/bin/bash"),
+        "window_width": 800,
+        "window_height": 600,
+        "is_maximized": False
     }
 
     _monitor = None

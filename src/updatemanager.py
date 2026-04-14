@@ -13,18 +13,16 @@ class UpdateManager:
     def check(self):
         if self.is_checking:
             return
-        
         self.is_checking = True
         self.old_stats = self.window.stats_label.get_label()
         self.window.stats_label.set_label("󰚰 Проверка обновлений...")
-        
         threading.Thread(target=self._run_check, daemon=True).start()
 
     def _run_check(self):
         try:
             url = f'https://api.github.com/repos/{Config.GITHUB_REPO}/releases/latest'
             headers = {'Accept': 'application/vnd.github.v3+json'}
-            response = requests.get(url, headers=headers, timeout=5)
+            response = requests.get(url, headers=headers, timeout=10)
             
             if response.status_code == 200:
                 data = response.json()
@@ -34,12 +32,10 @@ class UpdateManager:
                 if latest > current:
                     GLib.idle_add(self._show_update_toast, data)
                 else:
-                    GLib.idle_add(self._show_status_toast, "Shellix актуален")
+                    GLib.idle_add(self._show_status_toast, "Вы используете последнюю версию")
             else:
                 GLib.idle_add(self._show_status_toast, "Ошибка сервера GitHub")
-                
         except Exception as e:
-            print(f"Ошибка проверки обновлений: {e}")
             GLib.idle_add(self._show_status_toast, "Нет связи с GitHub")
         finally:
             self.is_checking = False
