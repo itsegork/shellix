@@ -5,7 +5,7 @@ from gi.repository import Gio, GLib
 class Config:
     APP_ID = "ru.itsegork.shellix"
     APP_NAME = "Shellix"
-    CURRENT_VERSION = "1.0.2"
+    CURRENT_VERSION = "1.0.3"
     GITHUB_REPO = "itsegork/shellix"
     
     CONFIG_DIR = os.path.expanduser("~/.config/shellix")

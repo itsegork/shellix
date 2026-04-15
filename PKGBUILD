@@ -1,6 +1,6 @@
 # Maintainer: Egor Kurochkin <itsegork@gmail.com>
 pkgname=shellix
-pkgver=1.0.2
+pkgver=1.0.3
 pkgrel=1
 pkgdesc="Virtual terminal for Linux with tab support and customizable options"
 arch=('any')
@@ -23,48 +23,39 @@ source=()
 sha256sums=()
 
 package() {
-    cd "$srcdir/.."
+    local _projectroot="${startdir}"
     
-    install -dm755 "$pkgdir/usr/share/$pkgname"
-    install -dm755 "$pkgdir/usr/bin"
-    install -dm755 "$pkgdir/usr/share/applications"
-    install -dm755 "$pkgdir/usr/share/pixmaps"
+    install -dm755 "${pkgdir}/usr/share/${pkgname}"
+    install -dm755 "${pkgdir}/usr/bin"
+    install -dm755 "${pkgdir}/usr/share/applications"
     
-    cp -r src "$pkgdir/usr/share/$pkgname/"
-    
-    if [ -d data ]; then
-        cp -r data "$pkgdir/usr/share/$pkgname/"
+    if [ -d "${_projectroot}/src" ]; then
+        cp -r "${_projectroot}/src" "${pkgdir}/usr/share/${pkgname}/"
+    else
+        echo "Ошибка: Папка src не найдена в ${_projectroot}"
+        return 1
     fi
     
-    if [ -f LICENSE ]; then
-        cp LICENSE "$pkgdir/usr/share/$pkgname/"
-    fi
-    
-    cp *.py "$pkgdir/usr/share/$pkgname/" 2>/dev/null || true
-    
-    cat > "$pkgdir/usr/bin/$pkgname" << EOF
+    echo -e "#!/bin/bash\nexec python3 /usr/share/${pkgname}/src/main.py \"\$@\"" > "${pkgdir}/usr/bin/${pkgname}"
+    chmod +x "${pkgdir}/usr/bin/${pkgname}"
 
-#!/bin/bash
-cd /usr/share/$pkgname
-exec python3 src/main.py
-EOF
-    chmod +x "$pkgdir/usr/bin/$pkgname"
-    
-    if [ -f "$pkgdir/usr/share/$pkgname/data/icons/ru.itsegork.shellix.svg" ]; then
-        cp "$pkgdir/usr/share/$pkgname/data/icons/ru.itsegork.shellix.svg" \
-           "$pkgdir/usr/share/pixmaps/ru.itsegork.shellix.svg"
+    local icon_src="${_projectroot}/data/icons/ru.itsegork.shellix.svg"
+    if [ -f "$icon_src" ]; then
+        install -Dm644 "$icon_src" "${pkgdir}/usr/share/icons/hicolor/scalable/apps/ru.itsegork.shellix.svg"
+        install -Dm644 "$icon_src" "${pkgdir}/usr/share/pixmaps/ru.itsegork.shellix.svg"
     fi
-    
-    cat > "$pkgdir/usr/share/applications/ru.itsegork.shellix.desktop" << EOF
+
+    cat > "${pkgdir}/usr/share/applications/ru.itsegork.shellix.desktop" << EOF
 [Desktop Entry]
 Name=Shellix
-Comment=Virtual terminal for Linux with tab support and customizable options
-Exec=ru.itsegork.shellix
+Comment=${pkgdesc}
+Exec=${pkgname} %f
 Icon=ru.itsegork.shellix
 Terminal=false
 Type=Application
-Categories=Development;System;
+Categories=Development;System;TerminalEmulator;
 Keywords=console;terminal;manager;shell;vte;
 StartupWMClass=ru.itsegork.shellix
+MimeType=inode/directory;
 EOF
 }
