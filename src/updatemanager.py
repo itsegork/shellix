@@ -10,12 +10,14 @@ class UpdateManager:
         self.window = parent_window
         self.is_checking = False
 
-    def check(self):
-        if self.is_checking:
+    def check(self, manual=False):
+        if not manual and not Config.load_settings().get("enable_auto_updates", True):
             return
+        if self.is_checking:
+            return        
         self.is_checking = True
         self.old_stats = self.window.stats_label.get_label()
-        self.window.stats_label.set_label("󰚰 Проверка обновлений...")
+        self.window.stats_label.set_label("Проверка обновлений...")
         threading.Thread(target=self._run_check, daemon=True).start()
 
     def _run_check(self):

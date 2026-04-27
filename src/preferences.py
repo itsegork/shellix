@@ -40,6 +40,16 @@ class PreferencesWindow(Adw.Window):
         bell_row.add_suffix(configure_suffix(self.bell_switch))
         group.add(bell_row)
 
+        update_group = Adw.PreferencesGroup(title="Обновления")
+        page.add(update_group)
+
+        update_row = Adw.ActionRow(title="Автоматическая проверка")
+        update_row.set_subtitle("Проверять наличие новых версий при запуске")
+        self.update_switch = Gtk.Switch()
+        self.update_switch.set_active(self.settings.get('enable_auto_updates', True))
+        update_row.add_suffix(configure_suffix(self.update_switch))
+        update_group.add(update_row)
+
         cursor_row = Adw.ActionRow(title="Вид курсора")
         self.cursor_names = ["Block", "I-Beam", "Underline"]
         self.cursor_values = ["block", "ibeam", "underline"]
@@ -118,6 +128,7 @@ class PreferencesWindow(Adw.Window):
 
         new_data = {
             "enable_audible_bell": bool(self.bell_switch.get_active()),
+            "enable_auto_updates": bool(self.update_switch.get_active()),
             "font": f"{font_name} {font_size}",
             "default_shell": str(self.shell_entry.get_text()),
             "cursor_shape": selected_cursor

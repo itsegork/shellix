@@ -8,8 +8,7 @@
 
 **Virtual terminal for Linux** with modern GTK4/LibAdwaita interface.
 
-![Main screenshot](data/screenshots/main.png)
-![Settings screenshot](data/screenshots/settings.png)
+![Main screenshot](data/screenshots/mainscreen.png)
 
 ## Features
 

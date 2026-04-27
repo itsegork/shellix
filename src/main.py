@@ -98,7 +98,7 @@ class ShellixWindow(Adw.ApplicationWindow):
             "close_tab": self.close_current_tab,
             "preferences": self.show_preferences,
             "about": lambda: Info(self),
-            "check_updates": lambda: self.updatemanager.check(),
+            "check_updates": lambda: self.updatemanager.check(manual=True),
             "copy": self.do_copy,
             "paste": self.do_paste
         }
