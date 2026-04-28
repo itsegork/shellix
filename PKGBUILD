@@ -1,6 +1,6 @@
 # Maintainer: Egor Kurochkin <itsegork@gmail.com>
 pkgname=shellix
-pkgver=1.0.4
+pkgver=1.0.5
 pkgrel=1
 pkgdesc="Virtual terminal for Linux with tab support and customizable options"
 arch=('any')
@@ -17,6 +17,7 @@ depends=(
     'cairo'
     'pango'
     'ttf-jetbrains-mono-nerd'
+    'conspy'
 )
 makedepends=()
 source=()

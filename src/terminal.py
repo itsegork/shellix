@@ -8,8 +8,11 @@ from gi.repository import GLib, Gdk, Vte, Pango, Gtk
 from config import Config
 
 class ShellixTerminal(Vte.Terminal):
-    def __init__(self, settings):
+    def __init__(self, settings, is_tty=False):
         super().__init__()
+        
+        self.is_tty = is_tty
+        self.settings = settings
         
         self.set_focusable(True)
         self.set_can_focus(True)
@@ -19,19 +22,19 @@ class ShellixTerminal(Vte.Terminal):
         
         self.set_encoding("UTF-8")
         self.set_mouse_autohide(True)
+        
         self.apply_settings(settings)
         
         self.setup_internal_style()
         
-        GLib.idle_add(self.spawn_shell)
+        if not self.is_tty:
+            GLib.idle_add(self.spawn_shell)
 
     def setup_internal_style(self):
         css_provider = Gtk.CssProvider()
-        css_data = b"""
-            vte-terminal {
-                padding: 20px;
-            }
-        """
+        padding = "0px" if self.is_tty else "20px"
+        css_data = f"vte-terminal {{ padding: {padding}; }}".encode()
+        
         css_provider.load_from_data(css_data)
         self.get_style_context().add_provider(
             css_provider, 
@@ -45,7 +48,11 @@ class ShellixTerminal(Vte.Terminal):
         self.set_scroll_on_keystroke(True)
         self.set_scroll_on_output(False)
         
-        font_string = self.settings.get("font", "Adwaita Mono 12")
+        if self.is_tty:
+            font_string = "Monospace 7" 
+        else:
+            font_string = self.settings.get("font", "Adwaita Mono 12")
+            
         font_desc = Pango.FontDescription.from_string(font_string)
         self.set_font(font_desc)
         
@@ -54,26 +61,30 @@ class ShellixTerminal(Vte.Terminal):
             "ibeam": Vte.CursorShape.IBEAM,
             "underline": Vte.CursorShape.UNDERLINE
         }
-        self.set_cursor_shape(cursor_map.get(
-            self.settings.get("cursor_shape", "block"), 
-            Vte.CursorShape.BLOCK
-        ))
+        
+        shape = Vte.CursorShape.BLOCK if self.is_tty else \
+                cursor_map.get(self.settings.get("cursor_shape", "block"), Vte.CursorShape.BLOCK)
+        self.set_cursor_shape(shape)
         
         self.set_audible_bell(self.settings.get("enable_audible_bell", False))
+        
         self.setup_colors()
 
     def setup_colors(self):
-        context = self.get_style_context()
-        success_fg, fg = context.lookup_color("window_fg_color")
-        success_bg, bg = context.lookup_color("window_bg_color")
-        
-        if not success_fg:
-            fg = Gdk.RGBA()
-            fg.parse("white")
-        if not success_bg:
-            bg = Gdk.RGBA()
-            bg.parse("#242424")
-        self.set_colors(fg, bg, None)
+        if self.is_tty:
+            fg = Gdk.RGBA(); fg.parse("#aaaaaa")
+            bg = Gdk.RGBA(); bg.parse("#000000")
+            self.set_colors(fg, bg, None)
+        else:
+            context = self.get_style_context()
+            success_fg, fg = context.lookup_color("window_fg_color")
+            success_bg, bg = context.lookup_color("window_bg_color")
+            
+            if not success_fg:
+                fg = Gdk.RGBA(); fg.parse("white")
+            if not success_bg:
+                bg = Gdk.RGBA(); bg.parse("#242424")
+            self.set_colors(fg, bg, None)
 
     def spawn_shell(self):
         shell = self.settings.get("default_shell", os.environ.get("SHELL", "/bin/bash"))
@@ -90,23 +101,37 @@ class ShellixTerminal(Vte.Terminal):
         
         self.spawn_async(
             Vte.PtyFlags.DEFAULT,
-            os.path.expanduser("~"),       # working_directory
-            [shell],                       # argv
-            env_list,                      # envv
-            GLib.SpawnFlags.SEARCH_PATH,   # spawn_flags
-            None,                          # child_setup
-            None,                          # child_setup_data
-            -1,                            # timeout
-            None,                          # cancellable
-            self.on_spawn_complete,        # callback
-            None                           # user_data
+            os.path.expanduser("~"),
+            [shell],
+            env_list,
+            GLib.SpawnFlags.SEARCH_PATH,
+            None, None, -1, None,
+            self.on_spawn_complete,
+            None
+        )
+
+    def spawn_tty(self, tty_number):
+        environ = os.environ.copy()
+        environ["TERM"] = "linux"
+        env_list = [f"{k}={v}" for k, v in environ.items()]
+
+        argv = ["pkexec", "conspy", str(tty_number)]
+
+        self.spawn_async(
+            Vte.PtyFlags.DEFAULT,
+            os.path.expanduser("~"),
+            argv,
+            env_list,
+            GLib.SpawnFlags.SEARCH_PATH,
+            None, None, -1, None,
+            self.on_spawn_complete,
+            None
         )
 
     def on_spawn_complete(self, terminal, pid, error, user_data):
         if error:
-            print(f"Ошибка запуска Shell: {error.message}")
+            print(f"Ошибка запуска: {error.message}")
             return
-
         self.grab_focus()
 
     def zoom_in(self):

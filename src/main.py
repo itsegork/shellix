@@ -17,9 +17,50 @@ from info import Info
 from updatemanager import UpdateManager
 
 def set_process_name(name):
-    libc = ctypes.CDLL(ctypes.util.find_library('c'))
-    buff = ctypes.create_string_buffer(name.encode('utf-8'), 16)
-    libc.prctl(15, ctypes.byref(buff), 0, 0, 0)
+    try:
+        libc = ctypes.CDLL(ctypes.util.find_library('c'))
+        buff = ctypes.create_string_buffer(name.encode('utf-8'), 16)
+        libc.prctl(15, ctypes.byref(buff), 0, 0, 0)
+    except Exception:
+        pass
+
+class TTYDialog(Adw.Window):
+    def __init__(self, parent, callback):
+        super().__init__(transient_for=parent, modal=True)
+        self.set_title("Подключение к TTY")
+        self.set_default_size(300, -1)
+        self.callback = callback
+
+        content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        content.set_margin_end(18)
+        self.set_content(content)
+
+        label = Gtk.Label(label="Введите номер системного TTY (1-6):")
+        content.append(label)
+
+        self.entry = Gtk.SpinButton.new_with_range(1, 6, 1)
+        self.entry.set_value(1)
+        content.append(self.entry)
+
+        btn_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+        btn_box.set_halign(Gtk.Align.END)
+        btn_box.set_margin_top(6)
+        
+        cancel_btn = Gtk.Button(label="Отмена")
+        cancel_btn.connect("clicked", lambda b: self.close())
+        
+        connect_btn = Gtk.Button(label="Подключиться")
+        connect_btn.add_css_class("suggested-action")
+        connect_btn.connect("clicked", self.on_connect_clicked)
+        
+        btn_box.append(cancel_btn)
+        btn_box.append(connect_btn)
+        content.append(btn_box)
+
+    def on_connect_clicked(self, btn):
+        tty_num = int(self.entry.get_value())
+        self.callback(tty_num)
+        self.close()
 
 class ShellixWindow(Adw.ApplicationWindow):
     def __init__(self, app, settings):
@@ -67,6 +108,7 @@ class ShellixWindow(Adw.ApplicationWindow):
         menu.append("Новое окно", "app.new_window")
         menu.append("Проверить обновления", "win.check_updates")
         menu.append("Настройки", "win.preferences")
+        menu.append("Подключиться к TTY (UNSTABLE)", "win.connect_tty")
         menu.append("О программе", "win.about")
 
         menu_button = Gtk.MenuButton()
@@ -99,6 +141,7 @@ class ShellixWindow(Adw.ApplicationWindow):
             "preferences": self.show_preferences,
             "about": lambda: Info(self),
             "check_updates": lambda: self.updatemanager.check(manual=True),
+            "connect_tty": self.show_tty_dialog,
             "copy": self.do_copy,
             "paste": self.do_paste
         }
@@ -134,24 +177,39 @@ class ShellixWindow(Adw.ApplicationWindow):
         provider = Gtk.CssProvider()
         css = """
             headerbar { border-bottom: none; box-shadow: none; }
-            headerbar label.title { 
-                font-feature-settings: "tnum"; 
-            }
+            headerbar label.title { font-feature-settings: "tnum"; }
             tabbar { border: none; background-color: @window_bg_color; }
             scrolledwindow, tabview { border: none; background-color: transparent; }
-            tab { border: none; box-shadow: none; outline: none; }
-            tabbox { outline: none; }
         """
         provider.load_from_data(css.encode())
         Gtk.StyleContext.add_provider_for_display(Gdk.Display.get_default(), provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
 
     def new_tab(self):
-        terminal = ShellixTerminal(self.settings)
+        terminal = ShellixTerminal(self.settings, is_tty=False)
         terminal.connect("child-exited", lambda t, s: self.on_terminal_child_exited(t))
         scrolled = Gtk.ScrolledWindow(child=terminal)
         page = self.tab_view.append(scrolled)
         page.set_title("Terminal")
         terminal.connect("window-title-changed", lambda v: page.set_title(v.get_property("window-title") or "Terminal"))
+        self.tab_view.set_selected_page(page)
+        terminal.grab_focus()
+
+    def show_tty_dialog(self):
+        dialog = TTYDialog(self, self.add_tty_tab)
+        dialog.present()
+
+    def add_tty_tab(self, tty_number):
+        terminal = ShellixTerminal(self.settings, is_tty=True)
+        terminal.connect("child-exited", lambda t, s: self.on_terminal_child_exited(t))
+        
+        terminal.spawn_tty(tty_number)
+        
+        scrolled = Gtk.ScrolledWindow(child=terminal)
+        scrolled.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.NEVER)
+        
+        page = self.tab_view.append(scrolled)
+        page.set_title(f"TTY {tty_number}")
+        
         self.tab_view.set_selected_page(page)
         terminal.grab_focus()
 
@@ -218,7 +276,7 @@ class ShellixApplication(Adw.Application):
         self.set_accels_for_action("win.copy", ["<Control><Shift>c"])
         self.set_accels_for_action("win.paste", ["<Control><Shift>v"])
         self.set_accels_for_action("app.new_window", ["<Control>n"])
-        self.set_accels_for_action("win.preferences", ["<Control>i"])
+        self.set_accels_for_action("win.preferences", ["<Control>comma"])
         self.set_accels_for_action("win.check_updates", ["<Control>u"])
         self.set_accels_for_action("win.about", ["F1"])
 
@@ -231,10 +289,6 @@ class ShellixApplication(Adw.Application):
         win.present()
 
 if __name__ == "__main__":
-    try:
-        set_process_name("Shellix")
-    except Exception:
-        pass
-
+    set_process_name("Shellix")
     app = ShellixApplication()
     app.run(sys.argv)
