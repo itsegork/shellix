@@ -4,6 +4,8 @@ import psutil
 import time
 import ctypes
 import ctypes.util
+import os
+from urllib.parse import unquote
 
 gi.require_version('Adw', '1')
 gi.require_version('Gtk', '4.0')
@@ -32,6 +34,9 @@ class TTYDialog(Adw.Window):
         self.callback = callback
 
         content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        content.set_margin_top(18)
+        content.set_margin_bottom(18)
+        content.set_margin_start(18)
         content.set_margin_end(18)
         self.set_content(content)
 
@@ -63,10 +68,11 @@ class TTYDialog(Adw.Window):
         self.close()
 
 class ShellixWindow(Adw.ApplicationWindow):
-    def __init__(self, app, settings):
+    def __init__(self, app, settings, initial_path=None):
         super().__init__(application=app)
         
         self.settings = settings
+        self.initial_path = initial_path
         self.set_title(Config.APP_NAME)
         
         self.set_default_size(
@@ -85,7 +91,7 @@ class ShellixWindow(Adw.ApplicationWindow):
         self.setup_actions()
         
         Config.watch(self.on_settings_reloaded)
-        self.new_tab()
+        self.new_tab(path=self.initial_path)
         
         self.connect("close-request", self.on_close_request)
         GLib.timeout_add_seconds(2, self.update_system_stats)
@@ -184,8 +190,8 @@ class ShellixWindow(Adw.ApplicationWindow):
         provider.load_from_data(css.encode())
         Gtk.StyleContext.add_provider_for_display(Gdk.Display.get_default(), provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
 
-    def new_tab(self):
-        terminal = ShellixTerminal(self.settings, is_tty=False)
+    def new_tab(self, path=None):
+        terminal = ShellixTerminal(self.settings, is_tty=False, work_dir=path)
         terminal.connect("child-exited", lambda t, s: self.on_terminal_child_exited(t))
         scrolled = Gtk.ScrolledWindow(child=terminal)
         page = self.tab_view.append(scrolled)
@@ -201,15 +207,11 @@ class ShellixWindow(Adw.ApplicationWindow):
     def add_tty_tab(self, tty_number):
         terminal = ShellixTerminal(self.settings, is_tty=True)
         terminal.connect("child-exited", lambda t, s: self.on_terminal_child_exited(t))
-        
         terminal.spawn_tty(tty_number)
-        
         scrolled = Gtk.ScrolledWindow(child=terminal)
         scrolled.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.NEVER)
-        
         page = self.tab_view.append(scrolled)
         page.set_title(f"TTY {tty_number}")
-        
         self.tab_view.set_selected_page(page)
         terminal.grab_focus()
 
@@ -266,11 +268,13 @@ class ShellixWindow(Adw.ApplicationWindow):
 
 class ShellixApplication(Adw.Application):
     def __init__(self):
-        super().__init__(application_id=Config.APP_ID, flags=Gio.ApplicationFlags.DEFAULT_FLAGS)
+        super().__init__(
+            application_id=Config.APP_ID, 
+            flags=Gio.ApplicationFlags.HANDLES_COMMAND_LINE
+        )
 
     def do_startup(self):
         Adw.Application.do_startup(self)
-        
         self.set_accels_for_action("win.new_tab", ["<Control>t"])
         self.set_accels_for_action("win.close_tab", ["<Control>w"])
         self.set_accels_for_action("win.copy", ["<Control><Shift>c"])
@@ -281,11 +285,32 @@ class ShellixApplication(Adw.Application):
         self.set_accels_for_action("win.about", ["F1"])
 
         action = Gio.SimpleAction.new("new_window", None)
-        action.connect("activate", lambda a, p: self.do_activate())
+        action.connect("activate", lambda a, p: self.activate_with_path(None))
         self.add_action(action)
 
+    def do_command_line(self, command_line):
+        args = command_line.get_arguments()
+        target_path = None
+
+        if len(args) > 1:
+            arg = args[1]
+            if arg.startswith("file://"):
+                arg = arg.replace("file://", "", 1)
+            
+            potential_path = unquote(arg)
+            if os.path.isdir(potential_path):
+                target_path = potential_path
+            elif os.path.isfile(potential_path):
+                target_path = os.path.dirname(potential_path)
+
+        self.activate_with_path(target_path)
+        return 0
+
     def do_activate(self):
-        win = ShellixWindow(self, settings=Config.load_settings())
+        self.activate_with_path(None)
+
+    def activate_with_path(self, path):
+        win = ShellixWindow(self, settings=Config.load_settings(), initial_path=path)
         win.present()
 
 if __name__ == "__main__":

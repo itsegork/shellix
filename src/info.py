@@ -23,17 +23,18 @@ class Info:
         developers=['Egor Kurochkin'], 
         copyright='© 2026 Egor Kurochkin\nhttps://github.com/itsegork/shellix', 
         license_type=Gtk.License.MIT_X11, 
+        issue_url=f'https://github.com/{Config.GITHUB_REPO}/issues',
         website=f'https://github.com/{Config.GITHUB_REPO}')
-
+    
         about.add_credit_section('Material Icons', ['Google LLC'])
-        about.add_credit_section('PyGObject, GTK4, LibAdwaita, GLib, Gio, GObject, Gdk, Pango', ['The GNOME Project'])
+        about.add_credit_section('PyGObject, GTK4, LibAdwaita, GLib, Gio, GObject, Gdk, Pango, VTE, nautilus-python', ['The GNOME Project'])
         about.add_credit_section('requests', ['Kenneth Reitz'])
         about.add_credit_section('psutil', ['Giampaolo Rodola', 'Jay Loden', 'Dave Daeschler'])
         about.add_credit_section('conspy', ['Russell Stuart'])
 
         about.add_legal_section('Material Icons', '© 2026 Google LLC\nhttps://fonts.google.com/icons', Gtk.License.APACHE_2_0, None)
         about.add_legal_section('requests', '© 2026 Kenneth Reitz\nhttps://github.com/psf/requests', Gtk.License.APACHE_2_0, None)
-        about.add_legal_section('PyGObject, GTK4, LibAdwaita, GLib, Gio, GObject, Gdk, Pango, VTE', '© 2026 The GNOME Project.\nhttps://gitlab.gnome.org/', Gtk.License.LGPL_2_1, None)
+        about.add_legal_section('PyGObject, GTK4, LibAdwaita, GLib, Gio, GObject, Gdk, Pango, VTE, nautilus-python', '© 2026 The GNOME Project.\nhttps://gitlab.gnome.org/', Gtk.License.LGPL_2_1, None)
         about.add_legal_section('psutil', '© 2026  Giampaolo Rodola, Dave Daeschler, Jay Loden\nhttps://github.com/giampaolo/psutil', Gtk.License.BSD_3, None)
         about.add_legal_section('conspy', '© 2020 Russell Stuart\nhttps://sourceforge.net/p/conspy/code/ci/default/tree/', Gtk.License.AGPL_3_0, None)
 

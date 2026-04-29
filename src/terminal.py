@@ -8,11 +8,12 @@ from gi.repository import GLib, Gdk, Vte, Pango, Gtk
 from config import Config
 
 class ShellixTerminal(Vte.Terminal):
-    def __init__(self, settings, is_tty=False):
+    def __init__(self, settings, is_tty=False, work_dir=None):
         super().__init__()
         
         self.is_tty = is_tty
         self.settings = settings
+        self.work_dir = work_dir or os.path.expanduser("~")
         
         self.set_focusable(True)
         self.set_can_focus(True)
@@ -24,7 +25,6 @@ class ShellixTerminal(Vte.Terminal):
         self.set_mouse_autohide(True)
         
         self.apply_settings(settings)
-        
         self.setup_internal_style()
         
         if not self.is_tty:
@@ -44,13 +44,15 @@ class ShellixTerminal(Vte.Terminal):
     def apply_settings(self, settings):
         self.settings = settings
         
-        self.set_scrollback_lines(self.settings.get("scrollback_lines", 10000))
-        self.set_scroll_on_keystroke(True)
-        self.set_scroll_on_output(False)
-        
         if self.is_tty:
-            font_string = "Monospace 7" 
+            self.set_scrollback_lines(0)
+            self.set_scroll_on_keystroke(True)
+            self.set_scroll_on_output(True)
+            font_string = "Monospace 7"
         else:
+            self.set_scrollback_lines(self.settings.get("scrollback_lines", 10000))
+            self.set_scroll_on_keystroke(True)
+            self.set_scroll_on_output(False)
             font_string = self.settings.get("font", "Adwaita Mono 12")
             
         font_desc = Pango.FontDescription.from_string(font_string)
@@ -67,7 +69,6 @@ class ShellixTerminal(Vte.Terminal):
         self.set_cursor_shape(shape)
         
         self.set_audible_bell(self.settings.get("enable_audible_bell", False))
-        
         self.setup_colors()
 
     def setup_colors(self):
@@ -91,6 +92,8 @@ class ShellixTerminal(Vte.Terminal):
         if not os.path.exists(shell):
             shell = "/bin/bash"
 
+        cwd = self.work_dir if os.path.isdir(self.work_dir) else os.path.expanduser("~")
+
         environ = os.environ.copy()
         environ["TERM"] = "xterm-256color"
         environ["COLORTERM"] = "truecolor"
@@ -101,7 +104,7 @@ class ShellixTerminal(Vte.Terminal):
         
         self.spawn_async(
             Vte.PtyFlags.DEFAULT,
-            os.path.expanduser("~"),
+            cwd,
             [shell],
             env_list,
             GLib.SpawnFlags.SEARCH_PATH,

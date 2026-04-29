@@ -14,7 +14,7 @@
 
 - Modern GTK4/LibAdwaita design following GNOME guidelines
 - Usage information: CPU, RAM, Disk, Connection
-- Font settings
+- Customization, integration with Nautilus and Dolphin, Real TTY Mode
 
 ## Requirements
 
@@ -28,13 +28,14 @@
 - psutil
 - ttf-jetbrains-mono-nerd
 - conspy
+- nautilus-python
 
 ## Installation
 
 ### Arch Linux
 
 ```bash
-sudo pacman -S python python-gobject python-requests gtk4 libadwaita pango cairo vte3 python-psutil ttf-jetbrains-mono-nerd
+sudo pacman -S python python-gobject python-requests gtk4 libadwaita pango cairo vte3 python-psutil ttf-jetbrains-mono-nerd nautilus-python
 yay -S conspy 
 git clone https://github.com/itsegork/shellix.git
 cd shellix
@@ -44,7 +45,7 @@ makepkg -si
 ### Ubuntu/Debian
 
 ```bash
-sudo apt install python3 python3-gi python3-requests python3-psutil libgtk-4-1 libadwaita-1-0 gir1.2-gtk-4.0 gir1.2-adw-1 libpango1.0-dev libcairo2-dev libvte-2.91-gtk4-dev fonts-jetbrains-mono conspy
+sudo apt install python3 python3-gi python3-requests python3-psutil libgtk-4-1 libadwaita-1-0 gir1.2-gtk-4.0 gir1.2-adw-1 libpango1.0-dev libcairo2-dev libvte-2.91-gtk4-dev fonts-jetbrains-mono conspy python3-nautilus
 git clone https://github.com/itsegork/shellix.git
 cd shellix
 python3 src/main.py
@@ -52,7 +53,7 @@ python3 src/main.py
 
 ### Fedora
 ```bash
-sudo dnf install python3 python3-gobject python3-requests python3-psutil gtk4 libadwaita pango cairo vte291-gtk4-devel jetbrains-mono-fonts-all conspy
+sudo dnf install python3 python3-gobject python3-requests python3-psutil gtk4 libadwaita pango cairo vte291-gtk4-devel jetbrains-mono-fonts-all conspy nautilus-python
 git clone https://github.com/itsegork/shellix.git
 cd shellix
 python3 src/main.py
@@ -68,7 +69,7 @@ This project is licensed under the **MIT License**.
 |-----------|---------|-----------|
 | Material Icons | Apache 2.0 | Google LLC |
 | requests | Apache 2.0 | Kenneth Reitz |
-| GTK4, libadwaita, PyGObject, GLib, Gio, Gdk, VTE, Pango | LGPL 2.1+ | GNOME Project |
+| GTK4, libadwaita, PyGObject, GLib, Gio, Gdk, VTE, Pango, nautilus-python | LGPL 2.1+ | GNOME Project |
 | psutil | BSD 3-Clause | Jay Loden, Dave Daeschler, Giampaolo Rodola |
 | conspy | AGPL 3.0+ | Russell Stuart |
 
