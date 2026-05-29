@@ -34,6 +34,8 @@
 
 ### Arch Linux
 
+[![AUR](https://img.shields.io/aur/version/shellix?style=for-the-badge)](https://aur.archlinux.org/packages/shellix)
+
 ```bash
 sudo pacman -S python python-gobject python-requests gtk4 libadwaita pango cairo vte3 python-psutil ttf-jetbrains-mono-nerd nautilus-python
 yay -S conspy 
