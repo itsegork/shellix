@@ -1,6 +1,6 @@
 # Maintainer: Egor Kurochkin <itsegork@gmail.com>
 pkgname=shellix
-pkgver=1.0.6
+pkgver=1.1.0
 pkgrel=1
 pkgdesc="Virtual terminal for Linux with tab support and customizable options"
 arch=('any')

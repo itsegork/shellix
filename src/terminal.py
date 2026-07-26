@@ -1,11 +1,15 @@
 import gi
 import os
+import subprocess
 
 gi.require_version('Gtk', '4.0')
 gi.require_version('Vte', '3.91')
 
-from gi.repository import GLib, Gdk, Vte, Pango, Gtk
+from gi.repository import GLib, Gdk, Vte, Pango, Gtk, Gio
 from config import Config
+
+def _(text):
+    return text
 
 class ShellixTerminal(Vte.Terminal):
     def __init__(self, settings, is_tty=False, work_dir=None):
@@ -26,6 +30,17 @@ class ShellixTerminal(Vte.Terminal):
         
         self.apply_settings(settings)
         self.setup_internal_style()
+        self.setup_context_menu()
+
+        scroll_controller = Gtk.EventControllerScroll.new(
+            Gtk.EventControllerScrollFlags.VERTICAL
+        )
+        scroll_controller.connect("scroll", self.on_scroll)
+        self.add_controller(scroll_controller)
+
+        key_controller = Gtk.EventControllerKey.new()
+        key_controller.connect("key-pressed", self.on_key_pressed)
+        self.add_controller(key_controller)
         
         if not self.is_tty:
             GLib.idle_add(self.spawn_shell)
@@ -33,13 +48,37 @@ class ShellixTerminal(Vte.Terminal):
     def setup_internal_style(self):
         css_provider = Gtk.CssProvider()
         padding = "0px" if self.is_tty else "20px"
-        css_data = f"vte-terminal {{ padding: {padding}; }}".encode()
+        css_data = f"vte-terminal {{ padding: {padding}; }}".encode('utf-8')
         
         css_provider.load_from_data(css_data)
         self.get_style_context().add_provider(
             css_provider, 
             Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
         )
+
+    def setup_context_menu(self):
+        menu = Gio.Menu.new()
+        menu.append(_("Копировать"), "win.copy")
+        menu.append(_("Вставить"), "win.paste")
+        
+        self.context_menu = Gtk.PopoverMenu.new_from_model(menu)
+        self.context_menu.set_parent(self)
+        self.context_menu.set_has_arrow(False)
+
+        click_gesture = Gtk.GestureClick.new()
+        click_gesture.set_button(Gdk.BUTTON_SECONDARY)
+        click_gesture.connect("pressed", self.on_right_click)
+        self.add_controller(click_gesture)
+
+    def on_right_click(self, gesture, n_press, x, y):
+        rect = Gdk.Rectangle()
+        rect.x = int(x)
+        rect.y = int(y)
+        rect.width = 1
+        rect.height = 1
+        
+        self.context_menu.set_pointing_to(rect)
+        self.context_menu.popup()
 
     def apply_settings(self, settings):
         self.settings = settings
@@ -117,8 +156,8 @@ class ShellixTerminal(Vte.Terminal):
         environ = os.environ.copy()
         environ["TERM"] = "linux"
         env_list = [f"{k}={v}" for k, v in environ.items()]
-
-        argv = ["pkexec", "conspy", str(tty_number)]
+        cmd = f"systemctl start getty@tty{tty_number}.service 2>/dev/null; exec conspy {tty_number}"
+        argv = ["pkexec", "sh", "-c", cmd]
 
         self.spawn_async(
             Vte.PtyFlags.DEFAULT,
@@ -145,3 +184,26 @@ class ShellixTerminal(Vte.Terminal):
     
     def zoom_reset(self):
         self.set_font_scale(1.0)
+
+    def on_scroll(self, controller, dx, dy):
+        state = controller.get_current_event_state()
+        if state & Gdk.ModifierType.CONTROL_MASK:
+            if dy < 0:
+                self.zoom_in()
+            elif dy > 0:
+                self.zoom_out()
+            return True
+        return False
+
+    def on_key_pressed(self, controller, keyval, keycode, state):
+        if state & Gdk.ModifierType.CONTROL_MASK:
+            if keyval in (Gdk.KEY_equal, Gdk.KEY_plus, Gdk.KEY_KP_Add):
+                self.zoom_in()
+                return True
+            elif keyval in (Gdk.KEY_minus, Gdk.KEY_KP_Subtract):
+                self.zoom_out()
+                return True
+            elif keyval in (Gdk.KEY_0, Gdk.KEY_KP_0):
+                self.zoom_reset()
+                return True
+        return False

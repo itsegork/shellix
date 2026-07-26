@@ -1,13 +1,20 @@
 from gi.repository import Nautilus, GObject
 import os
+import subprocess
 
 class ShellixMenuExtension(GObject.GObject, Nautilus.MenuProvider):
     def __init__(self):
-        pass
+        super().__init__()
 
     def _open_shellix(self, menu, file):
-        path = file.get_location().get_path()
-        os.system(f"shellix '{path}' &")
+        location = file.get_location()
+        if not location:
+            return
+            
+        path = location.get_path()
+        
+        if path:
+            subprocess.Popen(["shellix", path], start_new_session=True)
 
     def get_file_items(self, *args):
         files = args[-1]

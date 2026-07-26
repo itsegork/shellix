@@ -76,3 +76,5 @@ This project is licensed under the **MIT License**.
 | conspy | AGPL 3.0+ | Russell Stuart |
 
 Full license texts are available in the [LICENSE](LICENSE) file.
+
+Special thanks to [asciiquarium](https://github.com/cmatsuoka/asciiquarium) for the beautiful fish for the screenshot!

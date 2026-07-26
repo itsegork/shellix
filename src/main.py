@@ -18,6 +18,9 @@ from preferences import PreferencesWindow
 from info import Info
 from updatemanager import UpdateManager
 
+def _(text):
+    return text
+
 def set_process_name(name):
     try:
         libc = ctypes.CDLL(ctypes.util.find_library('c'))
@@ -29,38 +32,54 @@ def set_process_name(name):
 class TTYDialog(Adw.Window):
     def __init__(self, parent, callback):
         super().__init__(transient_for=parent, modal=True)
-        self.set_title("Подключение к TTY")
-        self.set_default_size(300, -1)
+        self.set_title(_("Подключение к TTY"))
+        self.set_default_size(400, -1)
+        self.set_resizable(False)
         self.callback = callback
 
-        content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
-        content.set_margin_top(18)
-        content.set_margin_bottom(18)
-        content.set_margin_start(18)
-        content.set_margin_end(18)
-        self.set_content(content)
+        toolbar_view = Adw.ToolbarView()
+        self.set_content(toolbar_view)
 
-        label = Gtk.Label(label="Введите номер системного TTY (1-6):")
-        content.append(label)
+        header = Adw.HeaderBar()
+        header.set_show_title(True)
+        toolbar_view.add_top_bar(header)
 
-        self.entry = Gtk.SpinButton.new_with_range(1, 6, 1)
-        self.entry.set_value(1)
-        content.append(self.entry)
-
-        btn_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
-        btn_box.set_halign(Gtk.Align.END)
-        btn_box.set_margin_top(6)
-        
-        cancel_btn = Gtk.Button(label="Отмена")
+        cancel_btn = Gtk.Button(label=_("Отмена"))
         cancel_btn.connect("clicked", lambda b: self.close())
-        
-        connect_btn = Gtk.Button(label="Подключиться")
+        header.pack_start(cancel_btn)
+
+        connect_btn = Gtk.Button(label=_("Подключиться"))
         connect_btn.add_css_class("suggested-action")
         connect_btn.connect("clicked", self.on_connect_clicked)
-        
-        btn_box.append(cancel_btn)
-        btn_box.append(connect_btn)
-        content.append(btn_box)
+        header.pack_end(connect_btn)
+
+        clamp = Adw.Clamp()
+        clamp.set_maximum_size(360)
+        clamp.set_margin_top(24)
+        clamp.set_margin_bottom(24)
+        clamp.set_margin_start(12)
+        clamp.set_margin_end(12)
+        toolbar_view.set_content(clamp)
+
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=18)
+        clamp.set_child(box)
+
+        group = Adw.PreferencesGroup(
+            title=_("Выбор терминала"),
+            description=_("Доступны виртуальные консоли TTY 3, 4, 5 и 6")
+        )
+        box.append(group)
+
+        row = Adw.ActionRow(
+            title=_("Номер TTY"),
+            subtitle=_("Укажите номер консоли")
+        )
+        group.add(row)
+
+        self.entry = Gtk.SpinButton.new_with_range(3, 6, 1)
+        self.entry.set_value(3)
+        self.entry.set_valign(Gtk.Align.CENTER)
+        row.add_suffix(self.entry)
 
     def on_connect_clicked(self, btn):
         tty_num = int(self.entry.get_value())
@@ -86,6 +105,9 @@ class ShellixWindow(Adw.ApplicationWindow):
         self.last_net_io = psutil.net_io_counters()
         self.last_time = time.time()
         
+        self._stats_timer_id = None
+        self._update_timer_id = None
+        
         self.setup_ui()
         self.updatemanager = UpdateManager(self)
         self.setup_actions()
@@ -94,8 +116,14 @@ class ShellixWindow(Adw.ApplicationWindow):
         self.new_tab(path=self.initial_path)
         
         self.connect("close-request", self.on_close_request)
-        GLib.timeout_add_seconds(2, self.update_system_stats)
-        GLib.timeout_add_seconds(10, self.updatemanager.check)
+        
+        self._stats_timer_id = GLib.timeout_add_seconds(2, self.update_system_stats)
+        self._update_timer_id = GLib.timeout_add_seconds(10, self._delayed_update_check)
+
+    def _delayed_update_check(self):
+        self.updatemanager.check()
+        self._update_timer_id = None
+        return False
 
     def setup_ui(self):
         self.toast_overlay = Adw.ToastOverlay()
@@ -106,16 +134,16 @@ class ShellixWindow(Adw.ApplicationWindow):
         self.add_toast = self.toast_overlay.add_toast
 
         self.header = Adw.HeaderBar()
-        self.stats_label = Gtk.Label(label="Загрузка...")
+        self.stats_label = Gtk.Label(label=_("Загрузка..."))
         self.stats_label.add_css_class("title")
         self.header.set_title_widget(self.stats_label)
         
         menu = Gio.Menu.new()
-        menu.append("Новое окно", "app.new_window")
-        menu.append("Проверить обновления", "win.check_updates")
-        menu.append("Настройки", "win.preferences")
-        menu.append("Подключиться к TTY (UNSTABLE)", "win.connect_tty")
-        menu.append("О программе", "win.about")
+        menu.append(_("Новое окно"), "app.new_window")
+        menu.append(_("Проверить обновления"), "win.check_updates")
+        menu.append(_("Настройки"), "win.preferences")
+        menu.append(_("Подключиться к TTY"), "win.connect_tty")
+        menu.append(_("О программе"), "win.about")
 
         menu_button = Gtk.MenuButton()
         menu_button.set_icon_name("open-menu-symbolic")
@@ -126,6 +154,8 @@ class ShellixWindow(Adw.ApplicationWindow):
         self.tab_view = Adw.TabView()
         self.tab_view.connect("close-page", self.on_page_close_request)
         self.tab_view.connect("setup-menu", self.on_setup_tab_menu)
+        
+        self.tab_view.connect("notify::selected-page", self.on_tab_changed)
 
         self.tab_bar = Adw.TabBar(view=self.tab_view)
         self.tab_bar.set_autohide(False)
@@ -142,41 +172,55 @@ class ShellixWindow(Adw.ApplicationWindow):
 
     def setup_actions(self):
         actions = {
-            "new_tab": self.new_tab,
-            "close_tab": self.close_current_tab,
-            "preferences": self.show_preferences,
-            "about": lambda: Info(self),
-            "check_updates": lambda: self.updatemanager.check(manual=True),
-            "connect_tty": self.show_tty_dialog,
-            "copy": self.do_copy,
-            "paste": self.do_paste
+            "new_tab": lambda *args: self.new_tab(),
+            "close_tab": lambda *args: self.close_current_tab(),
+            "preferences": lambda *args: self.show_preferences(),
+            "about": lambda *args: Info(self),
+            "check_updates": lambda *args: self.updatemanager.check(manual=True),
+            "connect_tty": lambda *args: self.show_tty_dialog(),
+            "copy": lambda *args: self.do_copy(),
+            "paste": lambda *args: self.do_paste()
         }
         for name, callback in actions.items():
             action = Gio.SimpleAction.new(name, None)
-            action.connect("activate", lambda a, p, cb=callback: cb())
+            action.connect("activate", callback)
             self.add_action(action)
 
     def update_system_stats(self):
+        if not self.settings.get("show_header", True):
+            self.stats_label.set_visible(False)
+            return True
+        
+        self.stats_label.set_visible(True)
+        
         if getattr(self.updatemanager, 'is_checking', False):
             return True
+            
         try:
-            cpu = psutil.cpu_percent()
-            vm = psutil.virtual_memory()
-            du = psutil.disk_usage('/')
-            net_io = psutil.net_io_counters()
-            now = time.time()
-            elapsed = max(now - self.last_time, 0.1)
-            dl = (net_io.bytes_recv - self.last_net_io.bytes_recv) / elapsed / 1024
-            ul = (net_io.bytes_sent - self.last_net_io.bytes_sent) / elapsed / 1024
-            self.last_net_io = net_io
-            self.last_time = now
-
-            stats = (f"  {cpu}%  󰘚  {vm.used/(1024**3):.1f}/{vm.total/(1024**3):.1f} GB  "
-                     f"󰋊  {du.used/(1024**3):.0f}/{du.total/(1024**3):.0f} GB  "
-                     f"󰓅  {dl:.1f}↓ {ul:.1f}↑ КБ/с")
+            parts = []
+            if self.settings.get("show_cpu", True):
+                cpu = psutil.cpu_percent()
+                parts.append(f"  {cpu}%")
+            if self.settings.get("show_ram", True):
+                vm = psutil.virtual_memory()
+                parts.append(f"󰘚  {vm.used/(1024**3):.1f}/{vm.total/(1024**3):.1f} GB")
+            if self.settings.get("show_disk", True):
+                du = psutil.disk_usage('/')
+                parts.append(f"󰋊  {du.used/(1024**3):.0f}/{du.total/(1024**3):.0f} GB")
+            if self.settings.get("show_net", True):
+                net_io = psutil.net_io_counters()
+                now = time.time()
+                elapsed = max(now - self.last_time, 0.1)
+                dl = (net_io.bytes_recv - self.last_net_io.bytes_recv) / elapsed / 1024
+                ul = (net_io.bytes_sent - self.last_net_io.bytes_sent) / elapsed / 1024
+                self.last_net_io = net_io
+                self.last_time = now
+                parts.append(f"󰓅  {dl:.1f}↓ {ul:.1f}↑ {_('КБ/с')}")
+            
+            stats = "  ".join(parts) if parts else Config.APP_NAME
             self.stats_label.set_label(stats)
         except Exception:
-            self.stats_label.set_label("Shellix")
+            self.stats_label.set_label(Config.APP_NAME)
         return True
 
     def apply_clean_styles(self):
@@ -188,32 +232,47 @@ class ShellixWindow(Adw.ApplicationWindow):
             scrolledwindow, tabview { border: none; background-color: transparent; }
         """
         provider.load_from_data(css.encode())
-        Gtk.StyleContext.add_provider_for_display(Gdk.Display.get_default(), provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+        Gtk.StyleContext.add_provider_for_display(
+            Gdk.Display.get_default(), 
+            provider, 
+            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+        )
 
     def new_tab(self, path=None):
         terminal = ShellixTerminal(self.settings, is_tty=False, work_dir=path)
         terminal.connect("child-exited", lambda t, s: self.on_terminal_child_exited(t))
+        
         scrolled = Gtk.ScrolledWindow(child=terminal)
         page = self.tab_view.append(scrolled)
         page.set_title("Terminal")
-        terminal.connect("window-title-changed", lambda v: page.set_title(v.get_property("window-title") or "Terminal"))
+        
+        terminal.connect(
+            "window-title-changed", 
+            lambda v: page.set_title(v.get_property("window-title") or "Terminal")
+        )
         self.tab_view.set_selected_page(page)
-        terminal.grab_focus()
 
     def show_tty_dialog(self):
-        dialog = TTYDialog(self, self.add_tty_tab)
-        dialog.present()
+        TTYDialog(self, self.add_tty_tab).present()
 
     def add_tty_tab(self, tty_number):
         terminal = ShellixTerminal(self.settings, is_tty=True)
         terminal.connect("child-exited", lambda t, s: self.on_terminal_child_exited(t))
         terminal.spawn_tty(tty_number)
+        
         scrolled = Gtk.ScrolledWindow(child=terminal)
         scrolled.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.NEVER)
         page = self.tab_view.append(scrolled)
         page.set_title(f"TTY {tty_number}")
         self.tab_view.set_selected_page(page)
-        terminal.grab_focus()
+
+    def on_tab_changed(self, tab_view, param):
+        term = self.get_current_terminal()
+        if term:
+            def _grab_focus():
+                term.grab_focus()
+                return False
+            GLib.idle_add(_grab_focus)
 
     def get_current_terminal(self):
         page = self.tab_view.get_selected_page()
@@ -221,7 +280,8 @@ class ShellixWindow(Adw.ApplicationWindow):
 
     def close_current_tab(self):
         page = self.tab_view.get_selected_page()
-        if page: self.tab_view.close_page(page)
+        if page: 
+            self.tab_view.close_page(page)
 
     def on_page_close_request(self, tab_view, page):
         if tab_view.get_n_pages() <= 1: 
@@ -238,24 +298,37 @@ class ShellixWindow(Adw.ApplicationWindow):
                 break
 
     def on_close_request(self, window):
+        if self._stats_timer_id:
+            GLib.source_remove(self._stats_timer_id)
+            self._stats_timer_id = None
+            
+        if self._update_timer_id:
+            GLib.source_remove(self._update_timer_id)
+            self._update_timer_id = None
+            
         w, h = self.get_default_size()
-        self.settings.update({"window_width": w, "window_height": h, "is_maximized": self.is_maximized()})
+        if w > 0 and h > 0:
+            self.settings.update({"window_width": w, "window_height": h})
+            
+        self.settings.update({"is_maximized": self.is_maximized()})
         Config.save_settings(self.settings)
         return False
 
     def on_setup_tab_menu(self, tab_view, page):
         menu = Gio.Menu()
-        menu.append("Новая вкладка", "win.new_tab")
-        menu.append("Закрыть", "win.close_tab")
+        menu.append(_("Новая вкладка"), "win.new_tab")
+        menu.append(_("Закрыть"), "win.close_tab")
         tab_view.set_menu_model(menu)
 
     def do_copy(self):
         term = self.get_current_terminal()
-        if term: term.copy_clipboard()
+        if term: 
+            term.copy_clipboard()
 
     def do_paste(self):
         term = self.get_current_terminal()
-        if term: term.paste_clipboard()
+        if term: 
+            term.paste_clipboard()
 
     def show_preferences(self):
         PreferencesWindow(self, self.settings, Config.save_settings).present()
@@ -264,7 +337,8 @@ class ShellixWindow(Adw.ApplicationWindow):
         self.settings = new_settings
         for i in range(self.tab_view.get_n_pages()):
             term = self.tab_view.get_nth_page(i).get_child().get_child()
-            if hasattr(term, 'apply_settings'): term.apply_settings(new_settings)
+            if hasattr(term, 'apply_settings'): 
+                term.apply_settings(new_settings)
 
 class ShellixApplication(Adw.Application):
     def __init__(self):
@@ -283,6 +357,7 @@ class ShellixApplication(Adw.Application):
         self.set_accels_for_action("win.preferences", ["<Control>comma"])
         self.set_accels_for_action("win.check_updates", ["<Control>u"])
         self.set_accels_for_action("win.about", ["F1"])
+        self.set_accels_for_action("win.connect_tty", ["<Control>y"])
 
         action = Gio.SimpleAction.new("new_window", None)
         action.connect("activate", lambda a, p: self.activate_with_path(None))
