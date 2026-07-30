@@ -1,39 +1,46 @@
 import gi
 import sys
-import psutil
+import os
 import time
 import ctypes
 import ctypes.util
-import os
+import logging
 from urllib.parse import unquote
+from i18n import _, setup_i18n
+setup_i18n()
 
 gi.require_version('Adw', '1')
 gi.require_version('Gtk', '4.0')
 gi.require_version('Vte', '3.91')
 
 from gi.repository import Adw, Gtk, Gio, Gdk, GLib
+import psutil
+
 from config import Config
 from terminal import ShellixTerminal
 from preferences import PreferencesWindow
 from info import Info
-from updatemanager import UpdateManager
 
-def _(text):
-    return text
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(name)s: %(message)s'
+)
+logger = logging.getLogger("Shellix")
 
-def set_process_name(name):
+def set_process_name(name: str):
     try:
         libc = ctypes.CDLL(ctypes.util.find_library('c'))
         buff = ctypes.create_string_buffer(name.encode('utf-8'), 16)
         libc.prctl(15, ctypes.byref(buff), 0, 0, 0)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(f"Failed to set process name: {e}")
+
 
 class TTYDialog(Adw.Window):
     def __init__(self, parent, callback):
         super().__init__(transient_for=parent, modal=True)
         self.set_title(_("Подключение к TTY"))
-        self.set_default_size(400, -1)
+        self.set_default_size(420, -1)
         self.set_resizable(False)
         self.callback = callback
 
@@ -54,7 +61,7 @@ class TTYDialog(Adw.Window):
         header.pack_end(connect_btn)
 
         clamp = Adw.Clamp()
-        clamp.set_maximum_size(360)
+        clamp.set_maximum_size(380)
         clamp.set_margin_top(24)
         clamp.set_margin_bottom(24)
         clamp.set_margin_start(12)
@@ -64,27 +71,39 @@ class TTYDialog(Adw.Window):
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=18)
         clamp.set_child(box)
 
-        group = Adw.PreferencesGroup(
-            title=_("Выбор терминала"),
+        group_tty = Adw.PreferencesGroup(
+            title=_("Параметры сессии"),
             description=_("Доступны виртуальные консоли TTY 3, 4, 5 и 6")
         )
-        box.append(group)
+        box.append(group_tty)
 
-        row = Adw.ActionRow(
+        row_num = Adw.ActionRow(
             title=_("Номер TTY"),
             subtitle=_("Укажите номер консоли")
         )
-        group.add(row)
+        group_tty.add(row_num)
 
-        self.entry = Gtk.SpinButton.new_with_range(3, 6, 1)
-        self.entry.set_value(3)
-        self.entry.set_valign(Gtk.Align.CENTER)
-        row.add_suffix(self.entry)
+        self.entry_num = Gtk.SpinButton.new_with_range(3, 6, 1)
+        self.entry_num.set_value(3)
+        self.entry_num.set_valign(Gtk.Align.CENTER)
+        row_num.add_suffix(self.entry_num)
+
+        group_info = Adw.PreferencesGroup(
+            title=_("Информация и предупреждения")
+        )
+        box.append(group_info)
+
+        self.info_row = Adw.ActionRow(
+            title=_("Conspy"),
+            subtitle=_("Возможны проблемы с геометрией и вылеты на мониторах с высоким разрешением.")
+        )
+        group_info.add(self.info_row)
 
     def on_connect_clicked(self, btn):
-        tty_num = int(self.entry.get_value())
+        tty_num = int(self.entry_num.get_value())
         self.callback(tty_num)
         self.close()
+
 
 class ShellixWindow(Adw.ApplicationWindow):
     def __init__(self, app, settings, initial_path=None):
@@ -106,10 +125,8 @@ class ShellixWindow(Adw.ApplicationWindow):
         self.last_time = time.time()
         
         self._stats_timer_id = None
-        self._update_timer_id = None
         
         self.setup_ui()
-        self.updatemanager = UpdateManager(self)
         self.setup_actions()
         
         Config.watch(self.on_settings_reloaded)
@@ -118,12 +135,6 @@ class ShellixWindow(Adw.ApplicationWindow):
         self.connect("close-request", self.on_close_request)
         
         self._stats_timer_id = GLib.timeout_add_seconds(2, self.update_system_stats)
-        self._update_timer_id = GLib.timeout_add_seconds(10, self._delayed_update_check)
-
-    def _delayed_update_check(self):
-        self.updatemanager.check()
-        self._update_timer_id = None
-        return False
 
     def setup_ui(self):
         self.toast_overlay = Adw.ToastOverlay()
@@ -140,7 +151,6 @@ class ShellixWindow(Adw.ApplicationWindow):
         
         menu = Gio.Menu.new()
         menu.append(_("Новое окно"), "app.new_window")
-        menu.append(_("Проверить обновления"), "win.check_updates")
         menu.append(_("Настройки"), "win.preferences")
         menu.append(_("Подключиться к TTY"), "win.connect_tty")
         menu.append(_("О программе"), "win.about")
@@ -154,7 +164,6 @@ class ShellixWindow(Adw.ApplicationWindow):
         self.tab_view = Adw.TabView()
         self.tab_view.connect("close-page", self.on_page_close_request)
         self.tab_view.connect("setup-menu", self.on_setup_tab_menu)
-        
         self.tab_view.connect("notify::selected-page", self.on_tab_changed)
 
         self.tab_bar = Adw.TabBar(view=self.tab_view)
@@ -176,7 +185,6 @@ class ShellixWindow(Adw.ApplicationWindow):
             "close_tab": lambda *args: self.close_current_tab(),
             "preferences": lambda *args: self.show_preferences(),
             "about": lambda *args: Info(self),
-            "check_updates": lambda *args: self.updatemanager.check(manual=True),
             "connect_tty": lambda *args: self.show_tty_dialog(),
             "copy": lambda *args: self.do_copy(),
             "paste": lambda *args: self.do_paste()
@@ -186,28 +194,30 @@ class ShellixWindow(Adw.ApplicationWindow):
             action.connect("activate", callback)
             self.add_action(action)
 
-    def update_system_stats(self):
-        if not self.settings.get("show_header", True):
+    def update_system_stats(self) -> bool:
+        show_cpu = self.settings.get("show_cpu", True)
+        show_ram = self.settings.get("show_ram", True)
+        show_disk = self.settings.get("show_disk", True)
+        show_net = self.settings.get("show_net", True)
+
+        if not any([show_cpu, show_ram, show_disk, show_net]):
             self.stats_label.set_visible(False)
             return True
-        
+
         self.stats_label.set_visible(True)
-        
-        if getattr(self.updatemanager, 'is_checking', False):
-            return True
-            
+
         try:
             parts = []
-            if self.settings.get("show_cpu", True):
+            if show_cpu:
                 cpu = psutil.cpu_percent()
                 parts.append(f"  {cpu}%")
-            if self.settings.get("show_ram", True):
+            if show_ram:
                 vm = psutil.virtual_memory()
                 parts.append(f"󰘚  {vm.used/(1024**3):.1f}/{vm.total/(1024**3):.1f} GB")
-            if self.settings.get("show_disk", True):
+            if show_disk:
                 du = psutil.disk_usage('/')
                 parts.append(f"󰋊  {du.used/(1024**3):.0f}/{du.total/(1024**3):.0f} GB")
-            if self.settings.get("show_net", True):
+            if show_net:
                 net_io = psutil.net_io_counters()
                 now = time.time()
                 elapsed = max(now - self.last_time, 0.1)
@@ -216,11 +226,13 @@ class ShellixWindow(Adw.ApplicationWindow):
                 self.last_net_io = net_io
                 self.last_time = now
                 parts.append(f"󰓅  {dl:.1f}↓ {ul:.1f}↑ {_('КБ/с')}")
-            
+
             stats = "  ".join(parts) if parts else Config.APP_NAME
             self.stats_label.set_label(stats)
-        except Exception:
+        except Exception as e:
+            logger.error(f"Error getting system statistics: {e}")
             self.stats_label.set_label(Config.APP_NAME)
+
         return True
 
     def apply_clean_styles(self):
@@ -231,7 +243,7 @@ class ShellixWindow(Adw.ApplicationWindow):
             tabbar { border: none; background-color: @window_bg_color; }
             scrolledwindow, tabview { border: none; background-color: transparent; }
         """
-        provider.load_from_data(css.encode())
+        provider.load_from_data(css.encode('utf-8'))
         Gtk.StyleContext.add_provider_for_display(
             Gdk.Display.get_default(), 
             provider, 
@@ -241,11 +253,11 @@ class ShellixWindow(Adw.ApplicationWindow):
     def new_tab(self, path=None):
         terminal = ShellixTerminal(self.settings, is_tty=False, work_dir=path)
         terminal.connect("child-exited", lambda t, s: self.on_terminal_child_exited(t))
-        
+
         scrolled = Gtk.ScrolledWindow(child=terminal)
         page = self.tab_view.append(scrolled)
         page.set_title("Terminal")
-        
+
         terminal.connect(
             "window-title-changed", 
             lambda v: page.set_title(v.get_property("window-title") or "Terminal")
@@ -259,7 +271,7 @@ class ShellixWindow(Adw.ApplicationWindow):
         terminal = ShellixTerminal(self.settings, is_tty=True)
         terminal.connect("child-exited", lambda t, s: self.on_terminal_child_exited(t))
         terminal.spawn_tty(tty_number)
-        
+
         scrolled = Gtk.ScrolledWindow(child=terminal)
         scrolled.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.NEVER)
         page = self.tab_view.append(scrolled)
@@ -269,14 +281,17 @@ class ShellixWindow(Adw.ApplicationWindow):
     def on_tab_changed(self, tab_view, param):
         term = self.get_current_terminal()
         if term:
-            def _grab_focus():
-                term.grab_focus()
-                return False
-            GLib.idle_add(_grab_focus)
+            GLib.idle_add(self._focus_current_terminal, term)
+
+    def _focus_current_terminal(self, term):
+        term.grab_focus()
+        return GLib.SOURCE_REMOVE
 
     def get_current_terminal(self):
         page = self.tab_view.get_selected_page()
-        return page.get_child().get_child() if page else None
+        if page and page.get_child():
+            return page.get_child().get_child()
+        return None
 
     def close_current_tab(self):
         page = self.tab_view.get_selected_page()
@@ -301,16 +316,13 @@ class ShellixWindow(Adw.ApplicationWindow):
         if self._stats_timer_id:
             GLib.source_remove(self._stats_timer_id)
             self._stats_timer_id = None
-            
-        if self._update_timer_id:
-            GLib.source_remove(self._update_timer_id)
-            self._update_timer_id = None
-            
+
         w, h = self.get_default_size()
         if w > 0 and h > 0:
-            self.settings.update({"window_width": w, "window_height": h})
-            
-        self.settings.update({"is_maximized": self.is_maximized()})
+            self.settings["window_width"] = w
+            self.settings["window_height"] = h
+
+        self.settings["is_maximized"] = self.is_maximized()
         Config.save_settings(self.settings)
         return False
 
@@ -340,6 +352,7 @@ class ShellixWindow(Adw.ApplicationWindow):
             if hasattr(term, 'apply_settings'): 
                 term.apply_settings(new_settings)
 
+
 class ShellixApplication(Adw.Application):
     def __init__(self):
         super().__init__(
@@ -355,7 +368,6 @@ class ShellixApplication(Adw.Application):
         self.set_accels_for_action("win.paste", ["<Control><Shift>v"])
         self.set_accels_for_action("app.new_window", ["<Control>n"])
         self.set_accels_for_action("win.preferences", ["<Control>comma"])
-        self.set_accels_for_action("win.check_updates", ["<Control>u"])
         self.set_accels_for_action("win.about", ["F1"])
         self.set_accels_for_action("win.connect_tty", ["<Control>y"])
 
@@ -371,7 +383,7 @@ class ShellixApplication(Adw.Application):
             arg = args[1]
             if arg.startswith("file://"):
                 arg = arg.replace("file://", "", 1)
-            
+
             potential_path = unquote(arg)
             if os.path.isdir(potential_path):
                 target_path = potential_path
@@ -388,7 +400,8 @@ class ShellixApplication(Adw.Application):
         win = ShellixWindow(self, settings=Config.load_settings(), initial_path=path)
         win.present()
 
+
 if __name__ == "__main__":
     set_process_name("Shellix")
     app = ShellixApplication()
-    app.run(sys.argv)
+    sys.exit(app.run(sys.argv))

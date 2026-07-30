@@ -1,6 +1,6 @@
 # Maintainer: Egor Kurochkin <itsegork@gmail.com>
 pkgname=shellix
-pkgver=1.1.0
+pkgver=1.1.1
 pkgrel=1
 pkgdesc="Virtual terminal for Linux with tab support and customizable options"
 arch=('any')
@@ -21,30 +21,34 @@ depends=(
     'nautilus-python'
 )
 makedepends=()
-source=()
-sha256sums=()
+source=("${pkgname}-${pkgver}.tar.gz::${url}/archive/refs/tags/${pkgver}.tar.gz")
+sha256sums=('SKIP')
 
 package() {
-    local _projectroot="${startdir}"
-    
+    cd "${srcdir}/${pkgname}-${pkgver}"
+
     install -dm755 "${pkgdir}/usr/share/${pkgname}"
     install -dm755 "${pkgdir}/usr/bin"
     install -dm755 "${pkgdir}/usr/share/applications"
     install -dm755 "${pkgdir}/usr/share/nautilus-python/extensions"
-    install -m644 "${_projectroot}/src/shellix_nautilus.py" \
-        "${pkgdir}/usr/share/nautilus-python/extensions/shellix_nautilus.py"
-    
-    if [ -d "${_projectroot}/src" ]; then
-        cp -r "${_projectroot}/src" "${pkgdir}/usr/share/${pkgname}/"
-    else
-        echo "Ошибка: Папка src не найдена в ${_projectroot}"
-        return 1
+
+    if [ -f "src/shellix_nautilus.py" ]; then
+        install -m644 src/shellix_nautilus.py \
+            "${pkgdir}/usr/share/nautilus-python/extensions/shellix_nautilus.py"
     fi
     
+    cp -r src "${pkgdir}/usr/share/${pkgname}/"
+    
+    if [ -d "locale" ]; then
+        install -dm755 "${pkgdir}/usr/share/locale"
+        cp -r locale/* "${pkgdir}/usr/share/locale/"
+        cp -r locale "${pkgdir}/usr/share/${pkgname}/"
+    fi
+
     echo -e "#!/bin/bash\nexec python3 /usr/share/${pkgname}/src/main.py \"\$@\"" > "${pkgdir}/usr/bin/${pkgname}"
     chmod +x "${pkgdir}/usr/bin/${pkgname}"
 
-    local icon_src="${_projectroot}/data/icons/ru.itsegork.shellix.svg"
+    local icon_src="data/icons/ru.itsegork.shellix.svg"
     if [ -f "$icon_src" ]; then
         install -Dm644 "$icon_src" "${pkgdir}/usr/share/icons/hicolor/scalable/apps/ru.itsegork.shellix.svg"
         install -Dm644 "$icon_src" "${pkgdir}/usr/share/pixmaps/ru.itsegork.shellix.svg"
@@ -83,4 +87,6 @@ Name=Open in Shellix
 Icon=ru.itsegork.shellix
 Exec=${pkgname} %f
 EOF
+
+    install -Dm644 LICENSE "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE"
 }

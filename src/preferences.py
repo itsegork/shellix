@@ -1,22 +1,25 @@
+import logging
 import gi
+from i18n import _, setup_i18n
+
 gi.require_version('Adw', '1')
 gi.require_version('Gtk', '4.0')
 gi.require_version('Pango', '1.0')
 gi.require_version('PangoCairo', '1.0')
 
-from gi.repository import Adw, Gtk, PangoCairo, GObject
+from gi.repository import Adw, Gtk, PangoCairo
+from config import Config
 
-def _(text):
-    return text
+logger = logging.getLogger("Shellix")
 
 class PreferencesWindow(Adw.PreferencesWindow):
-    def __init__(self, parent, current_settings, save_callback):
+    def __init__(self, parent, current_settings: dict, save_callback):
         super().__init__(transient_for=parent, modal=True)
-        
+
         self.set_title(_("Настройки Shellix"))
         self.set_default_size(500, 600)
         self.save_callback = save_callback
-        self.settings = current_settings
+        self.settings = current_settings.copy()
 
         page = Adw.PreferencesPage()
         page.set_title(_("Основные"))
@@ -38,7 +41,7 @@ class PreferencesWindow(Adw.PreferencesWindow):
 
         self.cursor_values = ["block", "ibeam", "underline"]
         cursor_names = [_("Блок (Block)"), _("Вертикальная черта (I-Beam)"), _("Подчеркивание (Underline)")]
-        
+
         cursor_model = Gtk.StringList.new(cursor_names)
         self.cursor_row = Adw.ComboRow(
             title=_("Вид курсора"),
@@ -62,7 +65,7 @@ class PreferencesWindow(Adw.PreferencesWindow):
             title=_("Шрифт системы"),
             model=font_model
         )
-        
+
         current_font_full = self.settings.get('font', "Monospace 12")
         font_parts = current_font_full.split()
         current_font_name = " ".join(font_parts[:-1]) if len(font_parts) > 1 else "Monospace"
@@ -80,12 +83,12 @@ class PreferencesWindow(Adw.PreferencesWindow):
             title=_("Размер шрифта"),
             model=size_model
         )
-        
+
         try:
             self.size_row.set_selected(self.sizes.index(current_size))
         except ValueError:
             self.size_row.set_selected(4)
-            
+
         font_group.add(self.size_row)
 
         header_group = Adw.PreferencesGroup(
@@ -108,21 +111,6 @@ class PreferencesWindow(Adw.PreferencesWindow):
             header_group.add(row)
             self.metric_rows[key] = row
 
-        update_group = Adw.PreferencesGroup(
-            title=_("Обновления"),
-            description=_("Внимание: встроенная проверка обновлений устарела и будет удалена в будущих версиях в пользу системного пакетного менеджера.")
-        )
-        page.add(update_group)
-
-        self.update_switch = Adw.SwitchRow(
-            title=_("Автоматическая проверка (Устарело)"),
-            subtitle=_("Проверять наличие новых версий при запуске Shellix")
-        )
-        self.update_switch.set_active(self.settings.get('enable_auto_updates', False))
-        
-        self.update_switch.connect("notify::active", self.on_update_switch_toggled)
-
-        update_group.add(self.update_switch)
         self.connect("close-request", self.on_window_close)
 
     def get_system_mono_fonts(self):
@@ -135,34 +123,31 @@ class PreferencesWindow(Adw.PreferencesWindow):
     def on_window_close(self, window):
         font_model = self.font_row.get_model()
         selected_font_idx = self.font_row.get_selected()
-        font_name = font_model.get_string(selected_font_idx) if selected_font_idx != Gtk.INVALID_LIST_POSITION else "Monospace"
-        
-        font_size = self.sizes[self.size_row.get_selected()]
+
+        if selected_font_idx != Gtk.INVALID_LIST_POSITION:
+            font_name = font_model.get_string(selected_font_idx)
+        else:
+            font_name = "Monospace"
+
+        size_idx = self.size_row.get_selected()
+        font_size = self.sizes[size_idx] if 0 <= size_idx < len(self.sizes) else "12"
 
         cursor_idx = self.cursor_row.get_selected()
-        selected_cursor = self.cursor_values[cursor_idx]
+        selected_cursor = self.cursor_values[cursor_idx] if 0 <= cursor_idx < len(self.cursor_values) else "block"
+
+        default_shell_path = str(self.shell_row.get_text()).strip() or "/bin/bash"
 
         new_data = {
             "enable_audible_bell": bool(self.bell_row.get_active()),
             "cursor_shape": selected_cursor,
-            "default_shell": str(self.shell_row.get_text()),
-            
+            "default_shell": default_shell_path,
             "font": f"{font_name} {font_size}",
-            
             "show_cpu": bool(self.metric_rows["show_cpu"].get_active()),
             "show_ram": bool(self.metric_rows["show_ram"].get_active()),
             "show_disk": bool(self.metric_rows["show_disk"].get_active()),
             "show_net": bool(self.metric_rows["show_net"].get_active()),
-            
-            "enable_auto_updates": bool(self.update_switch.get_active())
         }
 
+        logger.info("Saving updated settings...")
         self.save_callback(new_data)
         return False
-
-    def on_update_switch_toggled(self, switch, param):
-        if switch.get_active():
-            parent = self.get_transient_for()
-            if parent and hasattr(parent, 'add_toast'):
-                toast = Adw.Toast.new(_("Проверка обновлений будет удалена в будущих версиях в пользу пакетного менеджера."))
-                parent.add_toast(toast)

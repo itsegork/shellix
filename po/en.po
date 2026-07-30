@@ -1,0 +1,201 @@
+# English translations for Shellix package.
+# Copyright (C) 2026 Egor Kurochkin
+# This file is distributed under the same license as the Shellix package.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Shellix 1.1.1\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-07-30 16:40+0400\n"
+"PO-Revision-Date: 2026-07-30 16:15+0400\n"
+"Last-Translator: Egor Kurochkin\n"
+"Language-Team: English\n"
+"Language: en\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#: src/terminal.py:61
+msgid "Копировать"
+msgstr "Copy"
+
+#: src/terminal.py:62
+msgid "Вставить"
+msgstr "Paste"
+
+#: src/main.py:42
+msgid "Подключение к TTY"
+msgstr "Connect to TTY"
+
+#: src/main.py:54
+msgid "Отмена"
+msgstr "Cancel"
+
+#: src/main.py:58
+msgid "Подключиться"
+msgstr "Connect"
+
+#: src/main.py:75
+msgid "Параметры сессии"
+msgstr "Session Options"
+
+#: src/main.py:76
+msgid "Доступны виртуальные консоли TTY 3, 4, 5 и 6"
+msgstr "Virtual consoles TTY 3, 4, 5, and 6 are available"
+
+#: src/main.py:81
+msgid "Номер TTY"
+msgstr "TTY Number"
+
+#: src/main.py:82
+msgid "Укажите номер консоли"
+msgstr "Select console number"
+
+#: src/main.py:92
+msgid "Информация и предупреждения"
+msgstr "Information and Warnings"
+
+#: src/main.py:97
+msgid "Conspy"
+msgstr "Conspy"
+
+#: src/main.py:98
+msgid ""
+"Возможны проблемы с геометрией и вылеты на мониторах с высоким разрешением."
+msgstr "Geometry issues and crashes may occur on high-resolution displays."
+
+#: src/main.py:148
+msgid "Загрузка..."
+msgstr "Loading..."
+
+#: src/main.py:153
+msgid "Новое окно"
+msgstr "New Window"
+
+#: src/main.py:154
+msgid "Настройки"
+msgstr "Preferences"
+
+#: src/main.py:155
+msgid "Подключиться к TTY"
+msgstr "Connect to TTY"
+
+#: src/main.py:156
+msgid "О программе"
+msgstr "About Shellix"
+
+#: src/main.py:228
+msgid "КБ/с"
+msgstr "KB/s"
+
+#: src/main.py:331
+msgid "Новая вкладка"
+msgstr "New Tab"
+
+#: src/main.py:332
+msgid "Закрыть"
+msgstr "Close"
+
+#: src/preferences.py:19
+msgid "Настройки Shellix"
+msgstr "Shellix Preferences"
+
+#: src/preferences.py:25
+msgid "Основные"
+msgstr "General"
+
+#: src/preferences.py:30
+msgid "Терминал"
+msgstr "Terminal"
+
+#: src/preferences.py:31
+msgid "Параметры работы эмулятора терминала"
+msgstr "Terminal emulator options"
+
+#: src/preferences.py:36
+msgid "Звуковой сигнал"
+msgstr "Audible Bell"
+
+#: src/preferences.py:37
+msgid "Использовать системный динамик при завершении задач"
+msgstr "Play sound on terminal bell events"
+
+#: src/preferences.py:43
+msgid "Блок (Block)"
+msgstr "Block"
+
+#: src/preferences.py:43
+msgid "Вертикальная черта (I-Beam)"
+msgstr "I-Beam"
+
+#: src/preferences.py:43
+msgid "Подчеркивание (Underline)"
+msgstr "Underline"
+
+#: src/preferences.py:47
+msgid "Вид курсора"
+msgstr "Cursor Shape"
+
+#: src/preferences.py:55
+msgid "Путь к оболочке"
+msgstr "Shell Path"
+
+#: src/preferences.py:59
+msgid "Шрифт"
+msgstr "Font"
+
+#: src/preferences.py:65
+msgid "Шрифт системы"
+msgstr "Font Family"
+
+#: src/preferences.py:83
+msgid "Размер шрифта"
+msgstr "Font Size"
+
+#: src/preferences.py:95
+msgid "Панель мониторинга"
+msgstr "System Indicators"
+
+#: src/preferences.py:96
+msgid "Настройка показателей системы в верхней части окна"
+msgstr "Configure system metrics displayed in the header"
+
+#: src/preferences.py:102
+msgid "Загрузка ЦП"
+msgstr "CPU Usage"
+
+#: src/preferences.py:102
+msgid "Процент использования процессора"
+msgstr "Processor usage percentage"
+
+#: src/preferences.py:103
+msgid "Оперативная память"
+msgstr "RAM"
+
+#: src/preferences.py:103
+msgid "Занятая и доступная ОЗУ"
+msgstr "Used and available memory"
+
+#: src/preferences.py:104
+msgid "Диск"
+msgstr "Disk Space"
+
+#: src/preferences.py:104
+msgid "Занятый объем на накопителе"
+msgstr "Used storage space"
+
+#: src/preferences.py:105
+msgid "Сетевая активность"
+msgstr "Network Activity"
+
+#: src/preferences.py:105
+msgid "Скорость входящего и исходящего трафика"
+msgstr "Download and upload speeds"
+
+#: src/info.py:34
+msgid ""
+"Виртуальный терминал для Linux с поддержкой вкладок и настраиваемыми "
+"параметрами"
+msgstr ""
+"Virtual terminal for Linux featuring tab support and customizable parameters"

@@ -1,6 +1,6 @@
-from gi.repository import Nautilus, GObject
-import os
 import subprocess
+from gi.repository import Nautilus, GObject
+
 
 class ShellixMenuExtension(GObject.GObject, Nautilus.MenuProvider):
     def __init__(self):
@@ -10,14 +10,19 @@ class ShellixMenuExtension(GObject.GObject, Nautilus.MenuProvider):
         location = file.get_location()
         if not location:
             return
-            
+
         path = location.get_path()
-        
         if path:
-            subprocess.Popen(["shellix", path], start_new_session=True)
+            try:
+                subprocess.Popen(["shellix", path], start_new_session=True)
+            except Exception:
+                try:
+                    subprocess.Popen(["python3", "-m", "shellix", path], start_new_session=True)
+                except Exception:
+                    pass
 
     def get_file_items(self, *args):
-        files = args[-1]
+        files = args[-1] if args else []
         if len(files) != 1 or not files[0].is_directory():
             return []
 
@@ -31,7 +36,10 @@ class ShellixMenuExtension(GObject.GObject, Nautilus.MenuProvider):
         return [item]
 
     def get_background_items(self, *args):
-        file = args[-1]
+        file = args[-1] if args else None
+        if not file:
+            return []
+
         item = Nautilus.MenuItem(
             name="Shellix::OpenTerminalBackground",
             label="Открыть в Shellix",

@@ -1,6 +1,7 @@
-import gi
 import os
-import subprocess
+import logging
+import gi
+from i18n import _, setup_i18n
 
 gi.require_version('Gtk', '4.0')
 gi.require_version('Vte', '3.91')
@@ -8,26 +9,25 @@ gi.require_version('Vte', '3.91')
 from gi.repository import GLib, Gdk, Vte, Pango, Gtk, Gio
 from config import Config
 
-def _(text):
-    return text
+logger = logging.getLogger("Shellix")
 
 class ShellixTerminal(Vte.Terminal):
-    def __init__(self, settings, is_tty=False, work_dir=None):
+    def __init__(self, settings: dict, is_tty: bool = False, work_dir: str = None):
         super().__init__()
-        
+
         self.is_tty = is_tty
         self.settings = settings
         self.work_dir = work_dir or os.path.expanduser("~")
-        
+
         self.set_focusable(True)
         self.set_can_focus(True)
         self.set_focus_on_click(True)
         self.set_hexpand(True)
         self.set_vexpand(True)
-        
+
         self.set_encoding("UTF-8")
         self.set_mouse_autohide(True)
-        
+
         self.apply_settings(settings)
         self.setup_internal_style()
         self.setup_context_menu()
@@ -41,7 +41,7 @@ class ShellixTerminal(Vte.Terminal):
         key_controller = Gtk.EventControllerKey.new()
         key_controller.connect("key-pressed", self.on_key_pressed)
         self.add_controller(key_controller)
-        
+
         if not self.is_tty:
             GLib.idle_add(self.spawn_shell)
 
@@ -49,8 +49,8 @@ class ShellixTerminal(Vte.Terminal):
         css_provider = Gtk.CssProvider()
         padding = "0px" if self.is_tty else "20px"
         css_data = f"vte-terminal {{ padding: {padding}; }}".encode('utf-8')
-        
         css_provider.load_from_data(css_data)
+        
         self.get_style_context().add_provider(
             css_provider, 
             Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
@@ -60,7 +60,7 @@ class ShellixTerminal(Vte.Terminal):
         menu = Gio.Menu.new()
         menu.append(_("Копировать"), "win.copy")
         menu.append(_("Вставить"), "win.paste")
-        
+
         self.context_menu = Gtk.PopoverMenu.new_from_model(menu)
         self.context_menu.set_parent(self)
         self.context_menu.set_has_arrow(False)
@@ -76,13 +76,13 @@ class ShellixTerminal(Vte.Terminal):
         rect.y = int(y)
         rect.width = 1
         rect.height = 1
-        
+
         self.context_menu.set_pointing_to(rect)
         self.context_menu.popup()
 
-    def apply_settings(self, settings):
+    def apply_settings(self, settings: dict):
         self.settings = settings
-        
+
         if self.is_tty:
             self.set_scrollback_lines(0)
             self.set_scroll_on_keystroke(True)
@@ -93,54 +93,68 @@ class ShellixTerminal(Vte.Terminal):
             self.set_scroll_on_keystroke(True)
             self.set_scroll_on_output(False)
             font_string = self.settings.get("font", "Adwaita Mono 12")
-            
+
         font_desc = Pango.FontDescription.from_string(font_string)
         self.set_font(font_desc)
-        
+
         cursor_map = {
             "block": Vte.CursorShape.BLOCK,
             "ibeam": Vte.CursorShape.IBEAM,
             "underline": Vte.CursorShape.UNDERLINE
         }
-        
+
         shape = Vte.CursorShape.BLOCK if self.is_tty else \
-                cursor_map.get(self.settings.get("cursor_shape", "block"), Vte.CursorShape.BLOCK)
+            cursor_map.get(self.settings.get("cursor_shape", "block"), Vte.CursorShape.BLOCK)
         self.set_cursor_shape(shape)
-        
+
         self.set_audible_bell(self.settings.get("enable_audible_bell", False))
         self.setup_colors()
 
     def setup_colors(self):
         if self.is_tty:
-            fg = Gdk.RGBA(); fg.parse("#aaaaaa")
-            bg = Gdk.RGBA(); bg.parse("#000000")
+            fg = Gdk.RGBA()
+            fg.parse("#aaaaaa")
+            bg = Gdk.RGBA()
+            bg.parse("#000000")
             self.set_colors(fg, bg, None)
         else:
             context = self.get_style_context()
             success_fg, fg = context.lookup_color("window_fg_color")
             success_bg, bg = context.lookup_color("window_bg_color")
-            
+
             if not success_fg:
-                fg = Gdk.RGBA(); fg.parse("white")
+                fg = Gdk.RGBA()
+                fg.parse("white")
             if not success_bg:
-                bg = Gdk.RGBA(); bg.parse("#242424")
+                bg = Gdk.RGBA()
+                bg.parse("#242424")
+
             self.set_colors(fg, bg, None)
+
+    @staticmethod
+    def _get_clean_env() -> dict:
+        env = os.environ.copy()
+        for key in ["DESKTOP_STARTUP_ID", "GSETTINGS_BACKEND"]:
+            env.pop(key, None)
+        return env
 
     def spawn_shell(self):
         shell = self.settings.get("default_shell", os.environ.get("SHELL", "/bin/bash"))
         if not os.path.exists(shell):
-            shell = "/bin/bash"
+            shell = "/bin/bash" if os.path.exists("/bin/bash") else "/bin/sh"
 
         cwd = self.work_dir if os.path.isdir(self.work_dir) else os.path.expanduser("~")
 
-        environ = os.environ.copy()
+        environ = self._get_clean_env()
         environ["TERM"] = "xterm-256color"
         environ["COLORTERM"] = "truecolor"
         environ["TERM_PROGRAM"] = "Shellix"
         environ["TERM_PROGRAM_VERSION"] = Config.CURRENT_VERSION
-        
+
         env_list = [f"{k}={v}" for k, v in environ.items()]
-        
+
+        logger.info(f"Run shell '{shell}' in directory: {cwd}")
+
         self.spawn_async(
             Vte.PtyFlags.DEFAULT,
             cwd,
@@ -152,12 +166,25 @@ class ShellixTerminal(Vte.Terminal):
             None
         )
 
-    def spawn_tty(self, tty_number):
-        environ = os.environ.copy()
+    def spawn_tty(self, tty_number: int):
+        if not (1 <= tty_number <= 12):
+            logger.error(f"Invalid TTY number: {tty_number}")
+            return
+
+        environ = self._get_clean_env()
         environ["TERM"] = "linux"
         env_list = [f"{k}={v}" for k, v in environ.items()]
-        cmd = f"systemctl start getty@tty{tty_number}.service 2>/dev/null; exec conspy {tty_number}"
+
+        cmd = (
+            f"systemctl start getty@tty{tty_number}.service 2>/dev/null; "
+            f"stty cols 80 rows 24 -F /dev/tty{tty_number} 2>/dev/null; "
+            f"exec conspy {tty_number}"
+        )
+
         argv = ["pkexec", "sh", "-c", cmd]
+
+        self.set_size(80, 24)
+        logger.info(f"Connecting to TTY console {tty_number}")
 
         self.spawn_async(
             Vte.PtyFlags.DEFAULT,
@@ -172,16 +199,17 @@ class ShellixTerminal(Vte.Terminal):
 
     def on_spawn_complete(self, terminal, pid, error, user_data):
         if error:
-            print(f"Ошибка запуска: {error.message}")
+            logger.error(f"Error starting terminal process: {error.message}")
             return
+        logger.info(f"Terminal process started successfully (PID: {pid})")
         self.grab_focus()
 
     def zoom_in(self):
         self.set_font_scale(self.get_font_scale() + 0.1)
-    
+
     def zoom_out(self):
         self.set_font_scale(max(0.1, self.get_font_scale() - 0.1))
-    
+
     def zoom_reset(self):
         self.set_font_scale(1.0)
 

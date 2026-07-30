@@ -37,7 +37,7 @@
 [![AUR](https://img.shields.io/aur/version/shellix?style=for-the-badge)](https://aur.archlinux.org/packages/shellix)
 
 ```bash
-sudo pacman -S python python-gobject python-requests gtk4 libadwaita pango cairo vte3 python-psutil ttf-jetbrains-mono-nerd nautilus-python
+sudo pacman -S python python-gobject python-requests gtk4 libadwaita pango cairo vte4 python-psutil ttf-jetbrains-mono-nerd nautilus-python
 yay -S conspy 
 git clone https://github.com/itsegork/shellix.git
 cd shellix
